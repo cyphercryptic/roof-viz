@@ -16,7 +16,27 @@ export async function checkUsage(supabase: SupabaseClient, tenantId: string) {
     .single();
 
   if (!subscription) {
-    return { allowed: false, used: 0, limit: 0, plan: 'free' as const, message: 'No subscription found' };
+    // Free tier: allow 10 visualizations per month with no subscription
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+    const FREE_LIMIT = 10;
+
+    const { count } = await supabase
+      .from('usage_records')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .gte('period_start', periodStart)
+      .lt('period_end', periodEnd);
+
+    const used = count || 0;
+    return {
+      allowed: used < FREE_LIMIT,
+      used,
+      limit: FREE_LIMIT,
+      plan: 'free' as const,
+      message: used >= FREE_LIMIT ? `You've used all ${FREE_LIMIT} free visualizations this month. Subscribe for more.` : undefined,
+    };
   }
 
   // Unlimited plan
