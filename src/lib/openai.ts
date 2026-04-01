@@ -9,8 +9,9 @@ export async function generateRoofVisualization(
 ): Promise<Buffer> {
   const file = await toFile(imageBuffer, 'house.png', { type: 'image/png' });
 
+  // Use dall-e-2 for image editing (gpt-image-1 doesn't support the edit endpoint)
   const response = await openai.images.edit({
-    model: 'gpt-image-1',
+    model: 'dall-e-2',
     image: file,
     prompt,
     size: '1024x1024',
