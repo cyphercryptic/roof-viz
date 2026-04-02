@@ -448,7 +448,7 @@ export default function VisualizePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Button variant="outline" onClick={handleTryAnother} className="h-12">
               <RotateCcw className="mr-2 h-4 w-4" />
-              Try Another
+              Try Another Color
             </Button>
             <Button variant="outline" onClick={handleDownload} className="h-12">
               <Download className="mr-2 h-4 w-4" />
