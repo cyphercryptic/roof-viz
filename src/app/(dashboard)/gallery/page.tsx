@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { BeforeAfterSlider } from '@/components/visualize/BeforeAfterSlider';
-import { Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2, Share2, Link2, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2, Share2, Link2, Check, Search } from 'lucide-react';
 import { canShare } from '@/lib/plan-features';
 import { toast } from 'sonner';
 import type { Visualization, Product } from '@/types';
@@ -22,6 +23,7 @@ export default function GalleryPage() {
   const [visualizations, setVisualizations] = useState<VisualizationWithProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedViz, setSelectedViz] = useState<VisualizationWithProduct | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [plan, setPlan] = useState<string>('');
   const [sharing, setSharing] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -127,17 +129,59 @@ export default function GalleryPage() {
         </p>
       </div>
 
-      {visualizations.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-brand-brown/50">
-            <ImageIcon className="h-12 w-12 mb-4" />
-            <p className="mb-2">No visualizations yet.</p>
-            <p className="text-sm">Create your first one from the Visualize page.</p>
-          </CardContent>
-        </Card>
-      ) : (
+      {/* Search bar */}
+      {visualizations.length > 0 && (
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-brown/40" />
+          <Input
+            placeholder="Search by customer name, address, or product..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-10"
+          />
+        </div>
+      )}
+
+      {(() => {
+        const filtered = visualizations.filter((viz) => {
+          if (!searchQuery) return true;
+          const q = searchQuery.toLowerCase();
+          return (
+            viz.customer_name?.toLowerCase().includes(q) ||
+            viz.customer_address?.toLowerCase().includes(q) ||
+            viz.products?.name?.toLowerCase().includes(q) ||
+            viz.products?.brand?.toLowerCase().includes(q) ||
+            viz.products?.color?.toLowerCase().includes(q)
+          );
+        });
+
+        if (visualizations.length === 0) {
+          return (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16 text-brand-brown/50">
+                <ImageIcon className="h-12 w-12 mb-4" />
+                <p className="mb-2">No visualizations yet.</p>
+                <p className="text-sm">Create your first one from the Visualize page.</p>
+              </CardContent>
+            </Card>
+          );
+        }
+
+        if (filtered.length === 0) {
+          return (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-brand-brown/50">
+                <Search className="h-10 w-10 mb-3" />
+                <p className="mb-1">No results for &ldquo;{searchQuery}&rdquo;</p>
+                <p className="text-sm">Try a different name, address, or product.</p>
+              </CardContent>
+            </Card>
+          );
+        }
+
+        return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {visualizations.map((viz) => (
+          {filtered.map((viz) => (
             <Card
               key={viz.id}
               className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
@@ -185,7 +229,8 @@ export default function GalleryPage() {
             </Card>
           ))}
         </div>
-      )}
+        );
+      })()}
 
       {/* Before/After modal */}
       <Dialog open={!!selectedViz} onOpenChange={() => setSelectedViz(null)}>
