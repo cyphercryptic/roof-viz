@@ -119,7 +119,7 @@ export function Header({ profile }: HeaderProps) {
       {/* Mobile navigation */}
       {mobileMenuOpen && (
         <nav className="border-t border-brand-peach/30 p-3 md:hidden space-y-1 bg-white">
-          {navItems.filter((item) => !(isDemo && item.href !== '/visualize')).map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}

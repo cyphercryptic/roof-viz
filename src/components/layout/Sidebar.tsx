@@ -48,7 +48,7 @@ export function Sidebar({ profile }: SidebarProps) {
         <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-brand-peach/50">
           Main
         </p>
-        {navItems.filter((item) => !(isDemo && item.href !== '/visualize')).map((item) => (
+        {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}

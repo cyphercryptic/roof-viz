@@ -44,7 +44,7 @@ export async function middleware(request: NextRequest) {
 
   // Restrict demo users to visualize page only
   if (user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api')) {
-    const restrictedForDemo = ['/catalog', '/settings', '/gallery'];
+    const restrictedForDemo = ['/catalog', '/settings'];
     const isRestrictedRoute = restrictedForDemo.some((r) =>
       request.nextUrl.pathname.startsWith(r)
     );
