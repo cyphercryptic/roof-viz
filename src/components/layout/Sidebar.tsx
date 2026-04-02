@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Image, FolderOpen, Package, Settings, Users, CreditCard } from 'lucide-react';
+import { Image, FolderOpen, Package, Settings, Users, CreditCard, BarChart3, Palette } from 'lucide-react';
 import type { Profile } from '@/types';
 
 interface SidebarProps {
@@ -17,8 +17,10 @@ const navItems = [
 
 const adminItems = [
   { href: '/catalog', label: 'Product Catalog', icon: Package },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings/team', label: 'Team', icon: Users },
   { href: '/settings/billing', label: 'Billing', icon: CreditCard },
+  { href: '/settings/branding', label: 'Branding', icon: Palette },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

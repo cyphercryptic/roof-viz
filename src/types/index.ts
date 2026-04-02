@@ -6,6 +6,10 @@ export interface Tenant {
   name: string;
   slug: string;
   logo_url: string | null;
+  brand_primary_color: string | null;
+  brand_secondary_color: string | null;
+  custom_domain: string | null;
+  hide_powered_by: boolean;
   created_at: string;
   updated_at: string;
 }

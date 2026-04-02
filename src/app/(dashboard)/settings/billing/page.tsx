@@ -40,7 +40,7 @@ const PLANS = [
     priceUnit: '/mo',
     limit: 250,
     popular: true,
-    features: ['250 visualizations/month', '7 team members', 'High quality', 'Priority support', 'Gallery sharing'],
+    features: ['250 visualizations/month', '7 team members', 'High quality', 'Priority support', 'Gallery sharing', 'PDF proposals'],
   },
   {
     key: 'business' as const,
@@ -50,7 +50,7 @@ const PLANS = [
     priceUnit: '/mo',
     limit: 1000,
     popular: false,
-    features: ['1,000 visualizations/month', 'Unlimited team members', 'High quality', 'Dedicated support', 'Gallery sharing'],
+    features: ['1,000 visualizations/month', 'Unlimited team members', 'High quality', 'Dedicated support', 'Gallery sharing', 'PDF proposals', 'Analytics dashboard'],
   },
   {
     key: 'business_pro' as const,
@@ -60,7 +60,7 @@ const PLANS = [
     priceUnit: '/mo',
     limit: 5000,
     popular: false,
-    features: ['5,000 visualizations/month', 'Unlimited team members', 'High quality', 'Dedicated support', 'Gallery sharing', 'White-label options'],
+    features: ['5,000 visualizations/month', 'Unlimited team members', 'High quality', 'Dedicated support', 'Gallery sharing', 'PDF proposals', 'Analytics dashboard', 'White-label branding'],
   },
 ];
 

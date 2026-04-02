@@ -12,10 +12,10 @@ import { Input } from '@/components/ui/input';
 import {
   Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2,
   Share2, Link2, Check, Search, FolderOpen, ArrowLeft,
-  GitCompareArrows, Plus,
+  GitCompareArrows, Plus, FileText, Download,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { canShare } from '@/lib/plan-features';
+import { canShare, canGeneratePdf } from '@/lib/plan-features';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Visualization, Product } from '@/types';
@@ -56,6 +56,7 @@ export default function GalleryPage() {
   // Share state
   const [sharing, setSharing] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const supabase = createClient();
   const router = useRouter();
@@ -205,6 +206,33 @@ export default function GalleryPage() {
       toast.error(error instanceof Error ? error.message : 'Failed to create share link');
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function handleDownloadPdf(vizId: string) {
+    setGeneratingPdf(true);
+    try {
+      const res = await fetch('/api/proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visualization_id: vizId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `roof-proposal-${vizId}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF proposal downloaded!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate PDF');
+    } finally {
+      setGeneratingPdf(false);
     }
   }
 
@@ -387,6 +415,41 @@ export default function GalleryPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* PDF Proposal button */}
+                    {canGeneratePdf(plan) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadPdf(selectedViz.id)}
+                        disabled={generatingPdf}
+                        className="gap-1.5"
+                      >
+                        {generatingPdf ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            PDF...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4" />
+                            PDF
+                          </>
+                        )}
+                      </Button>
+                    ) : profile?.role === 'demo' ? null : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled
+                        className="gap-1.5 text-brand-brown/40"
+                        title="Upgrade to Pro for PDF proposals"
+                      >
+                        <FileText className="h-4 w-4" />
+                        PDF
+                      </Button>
+                    )}
+
+                    {/* Share button */}
                     {canShare(plan) ? (
                       <Button
                         variant="outline"

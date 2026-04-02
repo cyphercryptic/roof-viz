@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { Image, FolderOpen, Package, Users, Settings, Menu, LogOut } from 'lucide-react';
+import { Image, FolderOpen, Package, Users, Settings, Menu, LogOut, BarChart3, Palette } from 'lucide-react';
 import type { Profile } from '@/types';
 import { useState } from 'react';
 
@@ -27,7 +27,9 @@ const navItems = [
 
 const adminItems = [
   { href: '/catalog', label: 'Catalog', icon: Package },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings/team', label: 'Team', icon: Users },
+  { href: '/settings/branding', label: 'Branding', icon: Palette },
 ];
 
 export function Header({ profile }: HeaderProps) {
@@ -79,7 +81,10 @@ export function Header({ profile }: HeaderProps) {
             {pathname.startsWith('/visualize') && 'Roof Visualization'}
             {pathname.startsWith('/gallery') && 'Visualization Gallery'}
             {pathname.startsWith('/catalog') && 'Product Catalog'}
+            {pathname.startsWith('/analytics') && 'Analytics Dashboard'}
             {pathname.startsWith('/settings/team') && 'Team Management'}
+            {pathname.startsWith('/settings/billing') && 'Billing & Usage'}
+            {pathname.startsWith('/settings/branding') && 'Brand Settings'}
             {pathname === '/settings' && 'Company Settings'}
           </p>
         </div>

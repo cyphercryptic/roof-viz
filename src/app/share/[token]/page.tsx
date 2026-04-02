@@ -41,9 +41,18 @@ export default async function SharePage({ params }: SharePageProps) {
   // Get tenant info for branding
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name, logo_url')
+    .select('name, logo_url, brand_primary_color, brand_secondary_color, hide_powered_by')
     .eq('id', link.tenant_id)
     .single();
+
+  // Check if tenant has Business Pro for white-label
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('plan')
+    .eq('tenant_id', link.tenant_id)
+    .single();
+
+  const isWhiteLabel = subscription?.plan === 'business_pro';
 
   // Increment view count (fire and forget)
   supabase
@@ -69,6 +78,11 @@ export default async function SharePage({ params }: SharePageProps) {
       productColor={viz.products?.color || ''}
       customerName={viz.customer_name}
       companyName={tenant?.name || 'RoofViz'}
+      whiteLabel={isWhiteLabel}
+      primaryColor={tenant?.brand_primary_color || '#E07A2F'}
+      secondaryColor={tenant?.brand_secondary_color || '#3D2B1F'}
+      hidePoweredBy={tenant?.hide_powered_by ?? false}
+      logoUrl={tenant?.logo_url || null}
     />
   );
 }
