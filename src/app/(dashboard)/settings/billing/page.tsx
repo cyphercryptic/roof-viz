@@ -6,26 +6,28 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, CreditCard, Zap, ArrowRight, Coins } from 'lucide-react';
+import { Check, CreditCard, Zap, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { Subscription } from '@/types/billing';
 
 const PLANS = [
   {
-    key: 'free' as const,
-    name: 'Free',
+    key: 'pay_per_use' as const,
+    name: 'Pay As You Go',
     price: 0,
-    priceLabel: '$0',
-    limit: 5,
+    priceLabel: '$0.75',
+    priceUnit: '/viz',
+    limit: -1,
     popular: false,
-    features: ['5 visualizations/month', '1 team member', 'Standard quality'],
+    features: ['No monthly fee', 'Unlimited visualizations', '3 team members', 'High quality', 'Pay only for what you use'],
   },
   {
     key: 'starter' as const,
     name: 'Starter',
     price: 44,
     priceLabel: '$44',
+    priceUnit: '/mo',
     limit: 100,
     popular: true,
     features: ['100 visualizations/month', '3 team members', 'High quality', 'Email support'],
@@ -35,6 +37,7 @@ const PLANS = [
     name: 'Pro',
     price: 99,
     priceLabel: '$99',
+    priceUnit: '/mo',
     limit: 250,
     popular: false,
     features: ['250 visualizations/month', '10 team members', 'High quality', 'Priority support', 'Gallery sharing'],
@@ -44,6 +47,7 @@ const PLANS = [
     name: 'Business',
     price: 299,
     priceLabel: '$299',
+    priceUnit: '/mo',
     limit: 1000,
     popular: false,
     features: ['1,000 visualizations/month', 'Unlimited team members', 'High quality', 'Dedicated support', 'Gallery sharing'],
@@ -53,6 +57,7 @@ const PLANS = [
     name: 'Business Pro',
     price: 1199,
     priceLabel: '$1,199',
+    priceUnit: '/mo',
     limit: 5000,
     popular: false,
     features: ['5,000 visualizations/month', 'Unlimited team members', 'High quality', 'Dedicated support', 'Gallery sharing', 'White-label options'],
@@ -139,16 +144,13 @@ export default function BillingPage() {
     );
   }
 
-  const currentPlan = subscription?.plan || 'free';
+  const currentPlan = subscription?.plan || 'pay_per_use';
   const isPayPerUse = currentPlan === 'pay_per_use';
   const usagePercent = usage && usage.limit > 0
     ? Math.round((usage.used / usage.limit) * 100)
     : 0;
 
-  // Find display name for current plan (check PLANS array or pay_per_use)
-  const currentPlanName = isPayPerUse
-    ? 'Pay As You Go'
-    : PLANS.find((p) => p.key === currentPlan)?.name || 'Free';
+  const currentPlanName = PLANS.find((p) => p.key === currentPlan)?.name || 'Pay As You Go';
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -184,7 +186,7 @@ export default function BillingPage() {
               <p className="text-sm text-brand-brown/40">Current billing period</p>
             </div>
             <Badge
-              variant={currentPlan === 'free' ? 'secondary' : 'default'}
+              variant={isPayPerUse ? 'secondary' : 'default'}
               className="text-sm px-3 py-1"
             >
               {currentPlanName} Plan
@@ -213,39 +215,8 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
-      {/* Pay As You Go callout */}
-      {(currentPlan === 'free' || isPayPerUse) && (
-        <Card className={`mb-8 border-dashed ${isPayPerUse ? 'bg-brand-peach-light' : ''}`}>
-          <CardContent className="flex items-center gap-4 p-5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-orange/10 flex-shrink-0">
-              <Coins className="h-6 w-6 text-brand-orange" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold">Pay As You Go</h3>
-              <p className="text-sm text-brand-brown/50">
-                Not ready to commit? Try RoofViz at just <span className="font-semibold text-brand-brown">$0.75 per visualization</span> with no monthly fee.
-              </p>
-            </div>
-            {isPayPerUse ? (
-              <Badge className="bg-green-100 text-green-700 flex-shrink-0">Active</Badge>
-            ) : isAdmin ? (
-              <Button
-                variant="outline"
-                className="flex-shrink-0"
-                disabled={!!checkoutLoading}
-                onClick={() => handleCheckout('pay_per_use')}
-              >
-                {checkoutLoading === 'pay_per_use' ? 'Redirecting...' : 'Get Started'}
-              </Button>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Plan cards */}
-      <h2 className="text-lg font-semibold mb-4">
-        {currentPlan === 'free' || isPayPerUse ? 'Monthly Plans' : 'Plans'}
-      </h2>
+      <h2 className="text-lg font-semibold mb-4">Plans</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-3 mb-8">
         {PLANS.map((plan) => {
@@ -270,7 +241,7 @@ export default function BillingPage() {
                 <h3 className="font-semibold text-lg">{plan.name}</h3>
                 <div className="mt-2 mb-4">
                   <span className="text-3xl font-bold">{plan.priceLabel}</span>
-                  {plan.price > 0 && <span className="text-brand-brown/50">/mo</span>}
+                  <span className="text-brand-brown/50">{plan.priceUnit}</span>
                 </div>
 
                 <ul className="space-y-2 mb-6">
@@ -286,26 +257,20 @@ export default function BillingPage() {
                   <Button variant="outline" className="w-full" disabled>
                     Current Plan
                   </Button>
-                ) : plan.key === 'free' ? (
-                  isAdmin && subscription?.stripe_subscription_id ? (
-                    <Button variant="outline" className="w-full" onClick={handleManageBilling}>
-                      Downgrade
-                    </Button>
-                  ) : null
                 ) : isAdmin ? (
                   <Button
                     className="w-full"
                     variant={plan.popular ? 'default' : 'outline'}
                     disabled={!!checkoutLoading || isDowngrade}
-                    onClick={() => handleCheckout(plan.key)}
+                    onClick={() => isDowngrade ? handleManageBilling() : handleCheckout(plan.key)}
                   >
                     {checkoutLoading === plan.key ? (
                       'Redirecting...'
                     ) : isDowngrade ? (
-                      'Manage in Portal'
+                      'Downgrade'
                     ) : (
                       <>
-                        {isPayPerUse ? 'Switch to Plan' : 'Upgrade'} <ArrowRight className="ml-1 h-4 w-4" />
+                        {isCurrent ? 'Current Plan' : isPayPerUse ? 'Switch to Plan' : plan.key === 'pay_per_use' ? 'Get Started' : 'Upgrade'} <ArrowRight className="ml-1 h-4 w-4" />
                       </>
                     )}
                   </Button>
