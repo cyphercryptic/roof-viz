@@ -29,7 +29,7 @@ const PLANS = [
     priceLabel: '$44',
     priceUnit: '/mo',
     limit: 100,
-    popular: true,
+    popular: false,
     features: ['100 visualizations/month', '3 team members', 'High quality', 'Email support'],
   },
   {
@@ -39,7 +39,7 @@ const PLANS = [
     priceLabel: '$99',
     priceUnit: '/mo',
     limit: 250,
-    popular: false,
+    popular: true,
     features: ['250 visualizations/month', '10 team members', 'High quality', 'Priority support', 'Gallery sharing'],
   },
   {
