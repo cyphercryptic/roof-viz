@@ -52,6 +52,18 @@ export interface Visualization {
   creator?: Profile;
 }
 
+export interface SharedLink {
+  id: string;
+  tenant_id: string;
+  visualization_id: string;
+  created_by: string;
+  token: string;
+  is_active: boolean;
+  expires_at: string | null;
+  view_count: number;
+  created_at: string;
+}
+
 export interface Invite {
   id: string;
   tenant_id: string;

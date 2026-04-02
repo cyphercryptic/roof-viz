@@ -27,9 +27,10 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/signup') ||
     request.nextUrl.pathname.startsWith('/invite');
+  const isPublicPage = request.nextUrl.pathname.startsWith('/share');
 
   // Redirect unauthenticated users to login (except auth pages and API routes)
-  if (!user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api')) {
+  if (!user && !isAuthPage && !isPublicPage && !request.nextUrl.pathname.startsWith('/api')) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

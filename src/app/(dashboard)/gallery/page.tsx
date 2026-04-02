@@ -8,7 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { BeforeAfterSlider } from '@/components/visualize/BeforeAfterSlider';
-import { Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2, Share2, Link2, Check } from 'lucide-react';
+import { canShare } from '@/lib/plan-features';
+import { toast } from 'sonner';
 import type { Visualization, Product } from '@/types';
 import NextImage from 'next/image';
 
@@ -20,6 +22,9 @@ export default function GalleryPage() {
   const [visualizations, setVisualizations] = useState<VisualizationWithProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedViz, setSelectedViz] = useState<VisualizationWithProduct | null>(null);
+  const [plan, setPlan] = useState<string>('');
+  const [sharing, setSharing] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const supabase = createClient();
   const { profile } = useUser();
 
@@ -30,6 +35,13 @@ export default function GalleryPage() {
   async function loadVisualizations() {
     // Wait for profile to load so we know if we need to filter
     if (!profile) return;
+
+    // Fetch subscription plan
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('plan')
+      .single();
+    if (sub) setPlan(sub.plan);
 
     let query = supabase
       .from('visualizations')
@@ -51,6 +63,31 @@ export default function GalleryPage() {
       setVisualizations(data as VisualizationWithProduct[]);
     }
     setLoading(false);
+  }
+
+  async function handleShare(vizId: string) {
+    setSharing(true);
+    setCopiedLink(false);
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visualization_id: vizId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const shareUrl = `${window.location.origin}/share/${data.token}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      toast.success('Share link copied to clipboard!');
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create share link');
+    } finally {
+      setSharing(false);
+    }
   }
 
   function getImageUrl(bucket: string, path: string) {
@@ -166,12 +203,51 @@ export default function GalleryPage() {
                     {selectedViz.products?.brand} - {selectedViz.products?.color}
                   </p>
                 </div>
-                {selectedViz.customer_name && (
-                  <div className="text-right text-sm text-brand-brown/50">
-                    <p>{selectedViz.customer_name}</p>
-                    {selectedViz.customer_address && <p>{selectedViz.customer_address}</p>}
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {selectedViz.customer_name && (
+                    <div className="text-right text-sm text-brand-brown/50 mr-2">
+                      <p>{selectedViz.customer_name}</p>
+                      {selectedViz.customer_address && <p>{selectedViz.customer_address}</p>}
+                    </div>
+                  )}
+                  {canShare(plan) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleShare(selectedViz.id)}
+                      disabled={sharing}
+                      className="gap-1.5"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="h-4 w-4 text-green-600" />
+                          Copied!
+                        </>
+                      ) : sharing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Sharing...
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="h-4 w-4" />
+                          Share
+                        </>
+                      )}
+                    </Button>
+                  ) : profile?.role === 'demo' ? null : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled
+                      className="gap-1.5 text-brand-brown/40"
+                      title="Upgrade to Pro to share visualizations"
+                    >
+                      <Link2 className="h-4 w-4" />
+                      Share
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
