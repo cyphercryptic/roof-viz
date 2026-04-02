@@ -22,7 +22,6 @@ export default function GalleryPage() {
   const [selectedViz, setSelectedViz] = useState<VisualizationWithProduct | null>(null);
   const supabase = createClient();
   const { profile } = useUser();
-  const isDemo = profile?.role === 'demo';
 
   useEffect(() => {
     loadVisualizations();
@@ -37,8 +36,9 @@ export default function GalleryPage() {
       .select('*, products(*)')
       .order('created_at', { ascending: false });
 
-    // Demo users only see their own visualizations
-    if (profile.role === 'demo') {
+    // Non-admin users only see their own visualizations
+    // Admins see all visualizations across their team
+    if (profile.role !== 'admin') {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         query = query.eq('created_by', user.id);
@@ -84,7 +84,9 @@ export default function GalleryPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Visualization Gallery</h1>
         <p className="text-brand-brown/50">
-          {isDemo ? 'Your roof visualizations' : 'All past roof visualizations for your team'}
+          {profile?.role === 'admin'
+            ? 'All past roof visualizations for your team'
+            : 'Your roof visualizations'}
         </p>
       </div>
 
