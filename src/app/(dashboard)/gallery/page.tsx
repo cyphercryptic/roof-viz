@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useUser } from '@/hooks/useUser';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,16 +21,31 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedViz, setSelectedViz] = useState<VisualizationWithProduct | null>(null);
   const supabase = createClient();
+  const { profile } = useUser();
+  const isDemo = profile?.role === 'demo';
 
   useEffect(() => {
     loadVisualizations();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadVisualizations() {
-    const { data, error } = await supabase
+    // Wait for profile to load so we know if we need to filter
+    if (!profile) return;
+
+    let query = supabase
       .from('visualizations')
       .select('*, products(*)')
       .order('created_at', { ascending: false });
+
+    // Demo users only see their own visualizations
+    if (profile.role === 'demo') {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        query = query.eq('created_by', user.id);
+      }
+    }
+
+    const { data, error } = await query;
 
     if (!error && data) {
       setVisualizations(data as VisualizationWithProduct[]);
@@ -67,7 +83,9 @@ export default function GalleryPage() {
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Visualization Gallery</h1>
-        <p className="text-brand-brown/50">All past roof visualizations for your team</p>
+        <p className="text-brand-brown/50">
+          {isDemo ? 'Your roof visualizations' : 'All past roof visualizations for your team'}
+        </p>
       </div>
 
       {visualizations.length === 0 ? (
