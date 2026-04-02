@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { MAX_FILE_SIZE, ACCEPTED_IMAGE_TYPES } from '@/lib/constants';
 import sharp from 'sharp';
 
 export async function POST(request: NextRequest) {
@@ -9,6 +12,11 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Rate limit by user
+  const adminSupabase = createAdminClient();
+  const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/upload', RATE_LIMITS.upload);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
 
   // Get the user's tenant
   const { data: profile } = await supabase
@@ -26,6 +34,22 @@ export async function POST(request: NextRequest) {
 
   if (!file) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+  }
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { error: `File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.` },
+      { status: 400 }
+    );
+  }
+
+  // Validate file type
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    return NextResponse.json(
+      { error: 'Unsupported file type. Please upload a JPEG, PNG, or WebP image.' },
+      { status: 400 }
+    );
   }
 
   try {

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { stripe, PLANS, type PlanKey } from '@/lib/stripe';
+import { stripe, PLANS } from '@/lib/stripe';
+import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { billingCheckoutSchema, parseBody } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -21,11 +23,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Only admins can manage billing' }, { status: 403 });
   }
 
-  const { plan } = await request.json() as { plan: PlanKey };
+  // Rate limit by user
+  const adminSupabaseRL = createAdminClient();
+  const rateCheck = await checkRateLimit(adminSupabaseRL, user.id, '/api/billing/checkout', RATE_LIMITS.general);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
 
-  if (!plan || !PLANS[plan] || plan === 'free') {
-    return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
+  const body = await request.json();
+  const parsed = parseBody(billingCheckoutSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
+  const plan = parsed.data.plan;
 
   const planConfig = PLANS[plan];
   if (!planConfig.stripePriceId) {

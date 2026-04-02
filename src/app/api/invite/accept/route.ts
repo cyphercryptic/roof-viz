@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { inviteAcceptSchema, parseBody } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
-  const { token, userId, fullName } = await request.json();
-
-  if (!token || !userId || !fullName) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-  }
-
   const supabase = createAdminClient();
+
+  // Rate limit by IP (unauthenticated)
+  const ip = getClientIp(request);
+  const rateCheck = await checkRateLimit(supabase, ip, '/api/invite/accept', RATE_LIMITS.auth);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+
+  const body = await request.json();
+  const parsed = parseBody(inviteAcceptSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { token, userId, fullName } = parsed.data;
 
   // Fetch and validate the invite
   const { data: invite, error: inviteError } = await supabase
@@ -22,6 +30,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid or expired invite' }, { status: 404 });
   }
 
+  // Check invite expiration
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+    return NextResponse.json({ error: 'This invite has expired' }, { status: 410 });
+  }
+
+  // Whitelist allowed roles
+  const allowedRoles = ['rep', 'admin', 'demo'];
+  const role = allowedRoles.includes(invite.role) ? invite.role : 'rep';
+
   // Create the profile
   const { error: profileError } = await supabase
     .from('profiles')
@@ -29,7 +46,7 @@ export async function POST(request: NextRequest) {
       id: userId,
       tenant_id: invite.tenant_id,
       full_name: fullName,
-      role: invite.role,
+      role,
     });
 
   if (profileError) {

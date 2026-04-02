@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import type { MasterProduct } from '@/lib/master-products';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { catalogSeedSchema, parseBody } from '@/lib/validation';
 
 // POST: Add selected products from master catalog to tenant's product list
 export async function POST(request: NextRequest) {
@@ -21,20 +23,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
-  const { products } = await request.json() as { products: MasterProduct[] };
+  // Rate limit by user
+  const adminSupabase = createAdminClient();
+  const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/catalog/seed', RATE_LIMITS.general);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
 
-  if (!products || !Array.isArray(products) || products.length === 0) {
-    return NextResponse.json({ error: 'No products provided' }, { status: 400 });
+  const body = await request.json();
+  const parsed = parseBody(catalogSeedSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
   // Insert all selected products
-  const rows = products.map((p) => ({
+  const rows = parsed.data.products.map((p) => ({
     tenant_id: profile.tenant_id,
     name: `${p.line} - ${p.color}`,
     brand: p.brand,
     color: p.color,
-    style: p.style,
-    description: p.description,
+    style: p.style || null,
+    description: p.description || null,
     is_active: true,
   }));
 

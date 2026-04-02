@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { proposalSchema, parseBody } from '@/lib/validation';
 
 const PRO_PLANS = ['pro', 'business', 'business_pro'];
 
@@ -26,6 +28,11 @@ export async function POST(request: NextRequest) {
 
     // 2. Plan gate - Pro+ only
     const adminSupabase = createAdminClient();
+
+    // Rate limit by user
+    const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/proposal', RATE_LIMITS.general);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+
     const { data: subscription } = await adminSupabase
       .from('subscriptions')
       .select('plan, status')
@@ -46,13 +53,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Parse request body
+    // 3. Parse and validate request body
     const body = await request.json();
-    const { visualization_id } = body;
-
-    if (!visualization_id) {
-      return NextResponse.json({ error: 'Missing required field: visualization_id' }, { status: 400 });
+    const parsed = parseBody(proposalSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { visualization_id } = parsed.data;
 
     // 4. Fetch visualization with product data
     const { data: visualization, error: vizError } = await adminSupabase

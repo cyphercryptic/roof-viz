@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { signupSchema, parseBody } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
-  const { userId, companyName, fullName } = await request.json();
-
-  if (!userId || !companyName || !fullName) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-  }
-
   const supabase = createAdminClient();
+
+  // Rate limit by IP (unauthenticated)
+  const ip = getClientIp(request);
+  const rateCheck = await checkRateLimit(supabase, ip, '/api/signup', RATE_LIMITS.auth);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+
+  const body = await request.json();
+  const parsed = parseBody(signupSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { userId, companyName, fullName } = parsed.data;
 
   // Create slug from company name
   const slug = companyName

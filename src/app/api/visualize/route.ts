@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { generateRoofVisualization } from '@/lib/openai';
 import { buildRoofPrompt } from '@/lib/prompts';
 import { checkUsage, recordUsage } from '@/lib/usage';
+import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { visualizeSchema, parseBody } from '@/lib/validation';
 
 export const maxDuration = 60; // Allow up to 60 seconds for OpenAI processing
 
@@ -25,8 +27,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
 
-  // Check usage limits
+  // Rate limit by user
   const adminSupabaseForUsage = createAdminClient();
+  const rateCheck = await checkRateLimit(adminSupabaseForUsage, user.id, '/api/visualize', RATE_LIMITS.visualize);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+
+  // Check usage limits
   const usage = await checkUsage(adminSupabaseForUsage, profile.tenant_id, {
     userId: user.id,
     role: profile.role,
@@ -40,10 +46,15 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { productId, originalImagePath, customerName, customerAddress } = body;
+  const parsed = parseBody(visualizeSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { productId, originalImagePath, customerName, customerAddress } = parsed.data;
 
-  if (!productId || !originalImagePath) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  // Verify image path belongs to this tenant (prevent cross-tenant access)
+  if (!originalImagePath.startsWith(profile.tenant_id + '/')) {
+    return NextResponse.json({ error: 'Invalid image path' }, { status: 400 });
   }
 
   // Fetch the product
