@@ -20,7 +20,7 @@ const PLANS = [
     priceUnit: '/viz',
     limit: -1,
     popular: false,
-    features: ['No monthly fee', 'Unlimited visualizations', '3 team members', 'High quality', 'Pay only for what you use'],
+    features: ['No monthly fee', 'Unlimited visualizations', '1 user', 'High quality', 'Pay only for what you use'],
   },
   {
     key: 'starter' as const,
