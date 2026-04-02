@@ -98,18 +98,24 @@ export default function GalleryPage() {
     for (const viz of visualizations) {
       if (viz.status !== 'completed') continue;
 
-      const name = viz.customer_name || '';
-      const address = viz.customer_address || '';
-      const key = `${name.toLowerCase().trim()}|||${address.toLowerCase().trim()}`;
+      // Group by original photo — same house photo = same project
+      const key = viz.original_image_path;
 
       if (!groups[key]) {
         groups[key] = {
           key,
-          customerName: name || 'Untitled Project',
-          customerAddress: address,
+          customerName: viz.customer_name || 'Untitled Project',
+          customerAddress: viz.customer_address || '',
           visualizations: [],
           latestDate: viz.created_at,
         };
+      }
+      // Update project name/address if this viz has better info
+      if (viz.customer_name && groups[key].customerName === 'Untitled Project') {
+        groups[key].customerName = viz.customer_name;
+      }
+      if (viz.customer_address && !groups[key].customerAddress) {
+        groups[key].customerAddress = viz.customer_address;
       }
       groups[key].visualizations.push(viz);
     }
