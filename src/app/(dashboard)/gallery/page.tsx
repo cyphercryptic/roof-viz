@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import {
   Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2,
   Share2, Link2, Check, Search, FolderOpen, ArrowLeft,
-  GitCompareArrows, ChevronLeft, ChevronRight, Plus,
+  GitCompareArrows, Plus,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { canShare } from '@/lib/plan-features';
@@ -48,10 +48,10 @@ export default function GalleryPage() {
   // Single visualization modal
   const [selectedViz, setSelectedViz] = useState<VisualizationWithProduct | null>(null);
 
-  // Compare mode (up to 3 selections)
+  // Compare mode (2 selections with before/after slider)
   const [compareMode, setCompareMode] = useState(false);
-  const [compareSelections, setCompareSelections] = useState<VisualizationWithProduct[]>([]);
-  const [compareIndex, setCompareIndex] = useState(0);
+  const [compareA, setCompareA] = useState<VisualizationWithProduct | null>(null);
+  const [compareB, setCompareB] = useState<VisualizationWithProduct | null>(null);
 
   // Share state
   const [sharing, setSharing] = useState(false);
@@ -155,34 +155,32 @@ export default function GalleryPage() {
     setActiveProjectKey(project.key);
     setView('detail');
     setCompareMode(false);
-    setCompareSelections([]);
-    setCompareIndex(0);
+    setCompareA(null);
+    setCompareB(null);
   }
 
   function backToProjects() {
     setView('projects');
     setActiveProjectKey(null);
     setCompareMode(false);
-    setCompareSelections([]);
-    setCompareIndex(0);
+    setCompareA(null);
+    setCompareB(null);
   }
 
   function toggleCompareSelect(viz: VisualizationWithProduct) {
     if (!compareMode) return;
 
-    const existing = compareSelections.findIndex((v) => v.id === viz.id);
-    if (existing >= 0) {
-      // Deselect
-      const updated = compareSelections.filter((v) => v.id !== viz.id);
-      setCompareSelections(updated);
-      if (compareIndex >= updated.length && updated.length > 0) {
-        setCompareIndex(updated.length - 1);
-      }
-    } else if (compareSelections.length < 3) {
-      // Add (max 3)
-      setCompareSelections([...compareSelections, viz]);
+    if (compareA?.id === viz.id) {
+      setCompareA(null);
+    } else if (compareB?.id === viz.id) {
+      setCompareB(null);
+    } else if (!compareA) {
+      setCompareA(viz);
+    } else if (!compareB) {
+      setCompareB(viz);
     } else {
-      toast.info('Maximum 3 selections. Deselect one first.');
+      // Both selected, replace B
+      setCompareB(viz);
     }
   }
 
@@ -273,8 +271,8 @@ export default function GalleryPage() {
                   variant={compareMode ? 'default' : 'outline'}
                   onClick={() => {
                     setCompareMode(!compareMode);
-                    setCompareSelections([]);
-                    setCompareIndex(0);
+                    setCompareA(null);
+                    setCompareB(null);
                   }}
                   className="gap-2"
                 >
@@ -287,75 +285,38 @@ export default function GalleryPage() {
         </div>
 
         {/* Compare instructions */}
-        {compareMode && compareSelections.length < 2 && (
+        {compareMode && (
           <div className="mb-4 rounded-lg bg-brand-peach-light border border-brand-peach/30 px-4 py-3 text-sm text-brand-brown/70">
-            {compareSelections.length === 0
-              ? 'Select up to 3 visualizations to compare'
-              : 'Select at least one more (up to 3 total)'}
+            {!compareA
+              ? 'Select the first visualization to compare'
+              : !compareB
+                ? 'Now select a second visualization to compare'
+                : 'Drag the slider to compare the two roof options'}
           </div>
         )}
 
-        {/* Compare viewer */}
-        {compareMode && compareSelections.length >= 2 && (
+        {/* Compare slider */}
+        {compareMode && compareA && compareB && (
           <div className="mb-6 space-y-3">
-            {/* Main image with navigation arrows */}
-            <div className="relative overflow-hidden rounded-xl border-2 border-brand-peach/30 shadow-lg">
-              <div className="relative aspect-[4/3]">
-                <NextImage
-                  src={getImageUrl('visualizations', compareSelections[compareIndex].result_image_path!)}
-                  alt={`${compareSelections[compareIndex].products?.name} visualization`}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
+            <BeforeAfterSlider
+              beforeUrl={getImageUrl('visualizations', compareA.result_image_path!)}
+              afterUrl={getImageUrl('visualizations', compareB.result_image_path!)}
+            />
+            <div className="flex justify-between items-center px-1">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-brand-orange" />
+                <div>
+                  <p className="font-medium text-sm">{compareA.products?.name}</p>
+                  <p className="text-xs text-brand-brown/50">{compareA.products?.color}</p>
+                </div>
               </div>
-              {/* Navigation arrows */}
-              <button
-                onClick={() => setCompareIndex((i) => (i - 1 + compareSelections.length) % compareSelections.length)}
-                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white transition-colors"
-              >
-                <ChevronLeft className="h-5 w-5 text-brand-brown" />
-              </button>
-              <button
-                onClick={() => setCompareIndex((i) => (i + 1) % compareSelections.length)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white transition-colors"
-              >
-                <ChevronRight className="h-5 w-5 text-brand-brown" />
-              </button>
-              {/* Counter */}
-              <div className="absolute top-3 right-3">
-                <Badge className="bg-brand-brown/70 text-white">
-                  {compareIndex + 1} / {compareSelections.length}
-                </Badge>
+              <div className="flex items-center gap-2">
+                <div>
+                  <p className="font-medium text-sm text-right">{compareB.products?.name}</p>
+                  <p className="text-xs text-brand-brown/50 text-right">{compareB.products?.color}</p>
+                </div>
+                <div className="h-3 w-3 rounded-full bg-brand-brown" />
               </div>
-            </div>
-
-            {/* Product info for current */}
-            <div className="text-center">
-              <p className="font-semibold text-brand-brown">
-                {compareSelections[compareIndex].products?.name}
-              </p>
-              <p className="text-sm text-brand-brown/50">
-                {compareSelections[compareIndex].products?.color}
-              </p>
-            </div>
-
-            {/* Dot indicators / thumbnail pills */}
-            <div className="flex justify-center gap-2">
-              {compareSelections.map((sel, i) => (
-                <button
-                  key={sel.id}
-                  onClick={() => setCompareIndex(i)}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                    i === compareIndex
-                      ? 'bg-brand-orange text-white'
-                      : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
-                  )}
-                >
-                  {sel.products?.color}
-                </button>
-              ))}
             </div>
           </div>
         )}
@@ -363,8 +324,9 @@ export default function GalleryPage() {
         {/* Visualization grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {completedVizs.map((viz) => {
-            const selectionIndex = compareSelections.findIndex((v) => v.id === viz.id);
-            const isCompareSelected = selectionIndex >= 0;
+            const isSelectedA = compareA?.id === viz.id;
+            const isSelectedB = compareB?.id === viz.id;
+            const isCompareSelected = isSelectedA || isSelectedB;
 
             return (
               <div
@@ -394,7 +356,7 @@ export default function GalleryPage() {
                   {compareMode && isCompareSelected && (
                     <div className="absolute top-2 left-2">
                       <Badge className="bg-brand-orange text-white">
-                        {selectionIndex + 1}
+                        {isSelectedA ? 'A' : 'B'}
                       </Badge>
                     </div>
                   )}
