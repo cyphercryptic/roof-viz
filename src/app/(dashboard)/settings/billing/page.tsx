@@ -247,7 +247,7 @@ export default function BillingPage() {
         {currentPlan === 'free' || isPayPerUse ? 'Monthly Plans' : 'Plans'}
       </h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-3 mb-8">
         {PLANS.map((plan) => {
           const isCurrent = plan.key === currentPlan;
           const currentIdx = PLANS.findIndex((p) => p.key === currentPlan);
@@ -257,7 +257,7 @@ export default function BillingPage() {
           return (
             <Card
               key={plan.key}
-              className={`relative ${
+              className={`relative overflow-visible ${
                 plan.popular ? 'ring-2 ring-brand-orange' : ''
               } ${isCurrent ? 'bg-brand-peach-light' : ''}`}
             >
