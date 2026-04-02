@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
 import { PhotoUploader } from '@/components/visualize/PhotoUploader';
@@ -44,6 +45,7 @@ function extractLine(product: Product): string {
 export default function VisualizePage() {
   const { profile } = useUser();
   const supabase = createClient();
+  const searchParams = useSearchParams();
 
   const [step, setStep] = useState<Step>('upload');
   const [products, setProducts] = useState<Product[]>([]);
@@ -69,6 +71,23 @@ export default function VisualizePage() {
     loadProducts();
     loadUsage();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-load photo from query params (e.g. coming from gallery "Add a Visual")
+  useEffect(() => {
+    const photoPath = searchParams.get('photo');
+    if (photoPath) {
+      const { data } = supabase.storage.from('house-photos').getPublicUrl(photoPath);
+      setOriginalImagePath(photoPath);
+      setOriginalImageUrl(data.publicUrl);
+      setPreview(data.publicUrl);
+      setStep('configure');
+
+      const name = searchParams.get('customer');
+      const address = searchParams.get('address');
+      if (name) setCustomerName(name);
+      if (address) setCustomerAddress(address);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadProducts() {
     const { data } = await supabase

@@ -12,8 +12,9 @@ import { Input } from '@/components/ui/input';
 import {
   Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2,
   Share2, Link2, Check, Search, FolderOpen, ArrowLeft,
-  GitCompareArrows, ChevronLeft, ChevronRight,
+  GitCompareArrows, ChevronLeft, ChevronRight, Plus,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { canShare } from '@/lib/plan-features';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -47,16 +48,17 @@ export default function GalleryPage() {
   // Single visualization modal
   const [selectedViz, setSelectedViz] = useState<VisualizationWithProduct | null>(null);
 
-  // Compare mode
+  // Compare mode (up to 3 selections)
   const [compareMode, setCompareMode] = useState(false);
-  const [compareA, setCompareA] = useState<VisualizationWithProduct | null>(null);
-  const [compareB, setCompareB] = useState<VisualizationWithProduct | null>(null);
+  const [compareSelections, setCompareSelections] = useState<VisualizationWithProduct[]>([]);
+  const [compareIndex, setCompareIndex] = useState(0);
 
   // Share state
   const [sharing, setSharing] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   const supabase = createClient();
+  const router = useRouter();
   const { profile } = useUser();
 
   useEffect(() => {
@@ -91,15 +93,21 @@ export default function GalleryPage() {
     setLoading(false);
   }
 
-  // Group visualizations into projects by customer name + address
+  // Group visualizations into projects.
+  // If customer name+address are both present, group by those (same customer = same project).
+  // Otherwise fall back to original_image_path (same upload session).
   const projects = useMemo(() => {
     const groups: Record<string, Project> = {};
 
     for (const viz of visualizations) {
       if (viz.status !== 'completed') continue;
 
-      // Group by original photo — same house photo = same project
-      const key = viz.original_image_path;
+      // Use customer name+address as the grouping key when available,
+      // otherwise fall back to the uploaded photo path
+      const hasCustomerInfo = viz.customer_name?.trim() && viz.customer_address?.trim();
+      const key = hasCustomerInfo
+        ? `customer::${viz.customer_name!.trim().toLowerCase()}::${viz.customer_address!.trim().toLowerCase()}`
+        : `path::${viz.original_image_path}`;
 
       if (!groups[key]) {
         groups[key] = {
@@ -147,32 +155,34 @@ export default function GalleryPage() {
     setActiveProjectKey(project.key);
     setView('detail');
     setCompareMode(false);
-    setCompareA(null);
-    setCompareB(null);
+    setCompareSelections([]);
+    setCompareIndex(0);
   }
 
   function backToProjects() {
     setView('projects');
     setActiveProjectKey(null);
     setCompareMode(false);
-    setCompareA(null);
-    setCompareB(null);
+    setCompareSelections([]);
+    setCompareIndex(0);
   }
 
   function toggleCompareSelect(viz: VisualizationWithProduct) {
     if (!compareMode) return;
 
-    if (compareA?.id === viz.id) {
-      setCompareA(null);
-    } else if (compareB?.id === viz.id) {
-      setCompareB(null);
-    } else if (!compareA) {
-      setCompareA(viz);
-    } else if (!compareB) {
-      setCompareB(viz);
+    const existing = compareSelections.findIndex((v) => v.id === viz.id);
+    if (existing >= 0) {
+      // Deselect
+      const updated = compareSelections.filter((v) => v.id !== viz.id);
+      setCompareSelections(updated);
+      if (compareIndex >= updated.length && updated.length > 0) {
+        setCompareIndex(updated.length - 1);
+      }
+    } else if (compareSelections.length < 3) {
+      // Add (max 3)
+      setCompareSelections([...compareSelections, viz]);
     } else {
-      // Both selected, replace B
-      setCompareB(viz);
+      toast.info('Maximum 3 selections. Deselect one first.');
     }
   }
 
@@ -237,56 +247,115 @@ export default function GalleryPage() {
                 <p className="text-brand-brown/50">{activeProject.customerAddress}</p>
               )}
             </div>
-            {completedVizs.length >= 2 && (
+            <div className="flex items-center gap-2">
               <Button
-                variant={compareMode ? 'default' : 'outline'}
+                variant="outline"
                 onClick={() => {
-                  setCompareMode(!compareMode);
-                  setCompareA(null);
-                  setCompareB(null);
+                  const firstViz = activeProject.visualizations[0];
+                  const params = new URLSearchParams({
+                    photo: firstViz.original_image_path,
+                  });
+                  if (activeProject.customerName && activeProject.customerName !== 'Untitled Project') {
+                    params.set('customer', activeProject.customerName);
+                  }
+                  if (activeProject.customerAddress) {
+                    params.set('address', activeProject.customerAddress);
+                  }
+                  router.push(`/visualize?${params.toString()}`);
                 }}
                 className="gap-2"
               >
-                <GitCompareArrows className="h-4 w-4" />
-                {compareMode ? 'Exit Compare' : 'Compare Products'}
+                <Plus className="h-4 w-4" />
+                Add a Visual
               </Button>
-            )}
+              {completedVizs.length >= 2 && (
+                <Button
+                  variant={compareMode ? 'default' : 'outline'}
+                  onClick={() => {
+                    setCompareMode(!compareMode);
+                    setCompareSelections([]);
+                    setCompareIndex(0);
+                  }}
+                  className="gap-2"
+                >
+                  <GitCompareArrows className="h-4 w-4" />
+                  {compareMode ? 'Exit Compare' : 'Compare Products'}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Compare instructions */}
-        {compareMode && (
+        {compareMode && compareSelections.length < 2 && (
           <div className="mb-4 rounded-lg bg-brand-peach-light border border-brand-peach/30 px-4 py-3 text-sm text-brand-brown/70">
-            {!compareA
-              ? 'Select the first visualization to compare'
-              : !compareB
-                ? 'Now select a second visualization to compare'
-                : 'Drag the slider to compare the two roof options'}
+            {compareSelections.length === 0
+              ? 'Select up to 3 visualizations to compare'
+              : 'Select at least one more (up to 3 total)'}
           </div>
         )}
 
-        {/* Compare slider */}
-        {compareMode && compareA && compareB && (
+        {/* Compare viewer */}
+        {compareMode && compareSelections.length >= 2 && (
           <div className="mb-6 space-y-3">
-            <BeforeAfterSlider
-              beforeUrl={getImageUrl('visualizations', compareA.result_image_path!)}
-              afterUrl={getImageUrl('visualizations', compareB.result_image_path!)}
-            />
-            <div className="flex justify-between items-center px-1">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-brand-orange" />
-                <div>
-                  <p className="font-medium text-sm">{compareA.products?.name}</p>
-                  <p className="text-xs text-brand-brown/50">{compareA.products?.color}</p>
-                </div>
+            {/* Main image with navigation arrows */}
+            <div className="relative overflow-hidden rounded-xl border-2 border-brand-peach/30 shadow-lg">
+              <div className="relative aspect-[4/3]">
+                <NextImage
+                  src={getImageUrl('visualizations', compareSelections[compareIndex].result_image_path!)}
+                  alt={`${compareSelections[compareIndex].products?.name} visualization`}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <div>
-                  <p className="font-medium text-sm text-right">{compareB.products?.name}</p>
-                  <p className="text-xs text-brand-brown/50 text-right">{compareB.products?.color}</p>
-                </div>
-                <div className="h-3 w-3 rounded-full bg-brand-brown" />
+              {/* Navigation arrows */}
+              <button
+                onClick={() => setCompareIndex((i) => (i - 1 + compareSelections.length) % compareSelections.length)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white transition-colors"
+              >
+                <ChevronLeft className="h-5 w-5 text-brand-brown" />
+              </button>
+              <button
+                onClick={() => setCompareIndex((i) => (i + 1) % compareSelections.length)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-lg hover:bg-white transition-colors"
+              >
+                <ChevronRight className="h-5 w-5 text-brand-brown" />
+              </button>
+              {/* Counter */}
+              <div className="absolute top-3 right-3">
+                <Badge className="bg-brand-brown/70 text-white">
+                  {compareIndex + 1} / {compareSelections.length}
+                </Badge>
               </div>
+            </div>
+
+            {/* Product info for current */}
+            <div className="text-center">
+              <p className="font-semibold text-brand-brown">
+                {compareSelections[compareIndex].products?.name}
+              </p>
+              <p className="text-sm text-brand-brown/50">
+                {compareSelections[compareIndex].products?.color}
+              </p>
+            </div>
+
+            {/* Dot indicators / thumbnail pills */}
+            <div className="flex justify-center gap-2">
+              {compareSelections.map((sel, i) => (
+                <button
+                  key={sel.id}
+                  onClick={() => setCompareIndex(i)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    i === compareIndex
+                      ? 'bg-brand-orange text-white'
+                      : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
+                  )}
+                >
+                  {sel.products?.color}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -294,9 +363,8 @@ export default function GalleryPage() {
         {/* Visualization grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {completedVizs.map((viz) => {
-            const isSelectedA = compareA?.id === viz.id;
-            const isSelectedB = compareB?.id === viz.id;
-            const isCompareSelected = isSelectedA || isSelectedB;
+            const selectionIndex = compareSelections.findIndex((v) => v.id === viz.id);
+            const isCompareSelected = selectionIndex >= 0;
 
             return (
               <div
@@ -326,7 +394,7 @@ export default function GalleryPage() {
                   {compareMode && isCompareSelected && (
                     <div className="absolute top-2 left-2">
                       <Badge className="bg-brand-orange text-white">
-                        {isSelectedA ? 'A' : 'B'}
+                        {selectionIndex + 1}
                       </Badge>
                     </div>
                   )}
