@@ -210,6 +210,24 @@ export default function VisualizePage() {
         </p>
       </div>
 
+      {/* Demo user banner */}
+      {profile?.role === 'demo' && (
+        <div className="mb-6 rounded-xl bg-gradient-to-r from-brand-orange/10 to-brand-peach-light border border-brand-orange/20 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <p className="font-semibold text-brand-brown">Demo Account</p>
+            <p className="text-sm text-brand-brown/60">
+              {usage ? `${usage.used} of ${usage.limit} free visualizations used` : 'Limited visualizations available'}
+            </p>
+          </div>
+          <a
+            href="mailto:connorf.bar9@gmail.com?subject=Interested%20in%20RoofViz"
+            className="px-4 py-2 bg-brand-orange text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity whitespace-nowrap"
+          >
+            Contact Sales
+          </a>
+        </div>
+      )}
+
       {/* Step 1: Upload */}
       {step === 'upload' && (
         <PhotoUploader
@@ -284,31 +302,33 @@ export default function VisualizePage() {
                 )}
               </div>
 
-              {/* Optional customer info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="customerName" className="text-sm text-brand-brown/50">
-                    Customer Name (optional)
-                  </Label>
-                  <Input
-                    id="customerName"
-                    placeholder="John Smith"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
+              {/* Optional customer info (hidden for demo users) */}
+              {profile?.role !== 'demo' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="customerName" className="text-sm text-brand-brown/50">
+                      Customer Name (optional)
+                    </Label>
+                    <Input
+                      id="customerName"
+                      placeholder="John Smith"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="customerAddress" className="text-sm text-brand-brown/50">
+                      Address (optional)
+                    </Label>
+                    <Input
+                      id="customerAddress"
+                      placeholder="123 Main St"
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="customerAddress" className="text-sm text-brand-brown/50">
-                    Address (optional)
-                  </Label>
-                  <Input
-                    id="customerAddress"
-                    placeholder="123 Main St"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                  />
-                </div>
-              </div>
+              )}
 
               {/* Usage indicator */}
               {usage && (
@@ -332,7 +352,9 @@ export default function VisualizePage() {
                 disabled={!selectedProductId || (usage !== null && !usage.allowed)}
               >
                 <Sparkles className="mr-2 h-5 w-5" />
-                {usage && !usage.allowed ? 'Limit Reached — Upgrade Plan' : 'Visualize New Roof'}
+                {usage && !usage.allowed
+                  ? (profile?.role === 'demo' ? 'Demo Limit Reached — Contact Sales' : 'Limit Reached — Upgrade Plan')
+                  : 'Visualize New Roof'}
               </Button>
             </CardContent>
           </Card>

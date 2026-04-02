@@ -16,6 +16,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
   const [loading, setLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [inviteRole, setInviteRole] = useState('');
   const [validating, setValidating] = useState(true);
   const router = useRouter();
   const supabase = createClient();
@@ -31,6 +32,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       const data = await res.json();
       setInviteEmail(data.email);
       setCompanyName(data.companyName);
+      setInviteRole(data.role || 'rep');
       setValidating(false);
     }
     validateInvite();
@@ -112,8 +114,14 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
         </div>
 
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-brand-brown">Join {companyName}</h2>
-          <p className="text-brand-brown/50 mt-1">You&apos;ve been invited to join as a sales rep</p>
+          <h2 className="text-2xl font-bold text-brand-brown">
+            {inviteRole === 'demo' ? `Try ${companyName}'s Roof Visualizer` : `Join ${companyName}`}
+          </h2>
+          <p className="text-brand-brown/50 mt-1">
+            {inviteRole === 'demo'
+              ? 'Create an account to try our AI roof visualization tool'
+              : "You've been invited to join as a sales rep"}
+          </p>
         </div>
 
         <form onSubmit={handleAcceptInvite} className="space-y-4">
@@ -155,7 +163,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             className="w-full h-11 bg-brand-orange hover:bg-brand-orange-dark text-white font-semibold shadow-lg shadow-brand-orange/20"
             disabled={loading}
           >
-            {loading ? 'Joining...' : 'Join Team'}
+            {loading ? 'Setting up...' : inviteRole === 'demo' ? 'Start Free Trial' : 'Join Team'}
           </Button>
         </form>
       </div>

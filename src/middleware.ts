@@ -42,6 +42,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Restrict demo users to visualize page only
+  if (user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api')) {
+    const restrictedForDemo = ['/catalog', '/settings', '/gallery'];
+    const isRestrictedRoute = restrictedForDemo.some((r) =>
+      request.nextUrl.pathname.startsWith(r)
+    );
+
+    if (isRestrictedRoute) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.role === 'demo') {
+        const url = request.nextUrl.clone();
+        url.pathname = '/visualize';
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return supabaseResponse;
 }
 

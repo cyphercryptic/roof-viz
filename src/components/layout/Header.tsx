@@ -35,6 +35,7 @@ export function Header({ profile }: HeaderProps) {
   const pathname = usePathname();
   const supabase = createClient();
   const isAdmin = profile?.role === 'admin';
+  const isDemo = profile?.role === 'demo';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   async function handleSignOut() {
@@ -99,7 +100,7 @@ export function Header({ profile }: HeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="text-xs text-brand-brown/40" disabled>
-              {profile?.role === 'admin' ? 'Admin' : 'Sales Rep'}
+              {profile?.role === 'admin' ? 'Admin' : profile?.role === 'demo' ? 'Demo User' : 'Sales Rep'}
             </DropdownMenuItem>
             {isAdmin && (
               <DropdownMenuItem onClick={() => router.push('/settings')}>
@@ -118,7 +119,7 @@ export function Header({ profile }: HeaderProps) {
       {/* Mobile navigation */}
       {mobileMenuOpen && (
         <nav className="border-t border-brand-peach/30 p-3 md:hidden space-y-1 bg-white">
-          {navItems.map((item) => (
+          {navItems.filter((item) => !(isDemo && item.href !== '/visualize')).map((item) => (
             <Link
               key={item.href}
               href={item.href}

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tenant_id')
+    .select('tenant_id, role')
     .eq('id', user.id)
     .single();
 
@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
 
   // Check usage limits
   const adminSupabaseForUsage = createAdminClient();
-  const usage = await checkUsage(adminSupabaseForUsage, profile.tenant_id);
+  const usage = await checkUsage(adminSupabaseForUsage, profile.tenant_id, {
+    userId: user.id,
+    role: profile.role,
+  });
   if (!usage.allowed) {
     return NextResponse.json({
       error: usage.message || 'Visualization limit reached. Please upgrade your plan.',

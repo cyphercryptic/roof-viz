@@ -13,7 +13,7 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tenant_id')
+    .select('tenant_id, role')
     .eq('id', user.id)
     .single();
 
@@ -22,7 +22,10 @@ export async function GET() {
   }
 
   const adminSupabase = createAdminClient();
-  const usage = await checkUsage(adminSupabase, profile.tenant_id);
+  const usage = await checkUsage(adminSupabase, profile.tenant_id, {
+    userId: user.id,
+    role: profile.role,
+  });
 
   return NextResponse.json(usage);
 }

@@ -7,7 +7,31 @@ const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || 'connorf.bar9@gmail.c
  * Check if a tenant has remaining visualizations for their current billing period.
  * Returns { allowed, used, limit, plan } or throws.
  */
-export async function checkUsage(supabase: SupabaseClient, tenantId: string) {
+export async function checkUsage(
+  supabase: SupabaseClient,
+  tenantId: string,
+  opts?: { userId?: string; role?: string }
+) {
+  // Demo users get per-user limits (not tenant-level)
+  if (opts?.role === 'demo' && opts.userId) {
+    const DEMO_LIMIT = 5;
+    const { count } = await supabase
+      .from('visualizations')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', opts.userId)
+      .eq('status', 'completed');
+
+    const used = count || 0;
+    return {
+      allowed: used < DEMO_LIMIT,
+      used,
+      limit: DEMO_LIMIT,
+      plan: 'demo' as const,
+      message: used >= DEMO_LIMIT
+        ? `You've used all ${DEMO_LIMIT} demo visualizations. Contact us to get full access!`
+        : undefined,
+    };
+  }
   // Get subscription
   const { data: subscription } = await supabase
     .from('subscriptions')

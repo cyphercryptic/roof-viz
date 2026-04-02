@@ -25,6 +25,7 @@ const adminItems = [
 export function Sidebar({ profile }: SidebarProps) {
   const pathname = usePathname();
   const isAdmin = profile?.role === 'admin';
+  const isDemo = profile?.role === 'demo';
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col bg-brand-brown">
@@ -47,7 +48,7 @@ export function Sidebar({ profile }: SidebarProps) {
         <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-brand-peach/50">
           Main
         </p>
-        {navItems.map((item) => (
+        {navItems.filter((item) => !(isDemo && item.href !== '/visualize')).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -102,7 +103,7 @@ export function Sidebar({ profile }: SidebarProps) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium text-white truncate">{profile.full_name}</p>
-              <p className="text-[11px] text-white/40 capitalize">{profile.role}</p>
+              <p className="text-[11px] text-white/40 capitalize">{profile.role === 'demo' ? 'Demo User' : profile.role}</p>
             </div>
           </div>
         </div>

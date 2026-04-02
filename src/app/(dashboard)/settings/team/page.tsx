@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { UserPlus, Users, Mail, Shield } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Profile, Invite } from '@/types';
 
@@ -21,6 +22,7 @@ export default function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
+  const [inviteRole, setInviteRole] = useState<'rep' | 'demo'>('rep');
 
   const isAdmin = profile?.role === 'admin';
 
@@ -49,7 +51,7 @@ export default function TeamPage() {
       .insert({
         tenant_id: profile?.tenant_id,
         email: inviteEmail,
-        role: 'rep',
+        role: inviteRole,
       });
 
     if (error) {
@@ -77,7 +79,7 @@ export default function TeamPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Team Management</h1>
-        <p className="text-brand-brown/50">Invite and manage your sales reps</p>
+        <p className="text-brand-brown/50">Invite sales reps or demo prospects</p>
       </div>
 
       {/* Invite form */}
@@ -85,10 +87,37 @@ export default function TeamPage() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            Invite Sales Rep
+            {inviteRole === 'demo' ? 'Invite Demo Prospect' : 'Invite Sales Rep'}
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Role toggle */}
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setInviteRole('rep')}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                inviteRole === 'rep'
+                  ? 'bg-brand-orange text-white'
+                  : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
+              )}
+            >
+              Sales Rep
+            </button>
+            <button
+              type="button"
+              onClick={() => setInviteRole('demo')}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                inviteRole === 'demo'
+                  ? 'bg-brand-orange text-white'
+                  : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
+              )}
+            >
+              Demo / Prospect
+            </button>
+          </div>
           <form onSubmit={handleInvite} className="flex gap-3">
             <div className="flex-1">
               <Input
@@ -104,7 +133,9 @@ export default function TeamPage() {
             </Button>
           </form>
           <p className="mt-2 text-xs text-brand-brown/50">
-            Share the invite link with your rep. They&apos;ll create an account and join your team.
+            {inviteRole === 'demo'
+              ? 'Share the link with your prospect. They\'ll get 5 free visualizations to try.'
+              : 'Share the invite link with your rep. They\'ll create an account and join your team.'}
           </p>
         </CardContent>
       </Card>
@@ -128,7 +159,9 @@ export default function TeamPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{invite.role}</Badge>
+                  <Badge variant="outline" className={invite.role === 'demo' ? 'border-blue-300 text-blue-600' : ''}>
+                    {invite.role === 'demo' ? 'Demo' : invite.role}
+                  </Badge>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -181,8 +214,11 @@ export default function TeamPage() {
                     </p>
                   </div>
                 </div>
-                <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>
-                  {member.role}
+                <Badge
+                  variant={member.role === 'admin' ? 'default' : 'secondary'}
+                  className={member.role === 'demo' ? 'border-blue-300 text-blue-600 bg-blue-50' : ''}
+                >
+                  {member.role === 'demo' ? 'Demo' : member.role}
                 </Badge>
               </div>
             ))
