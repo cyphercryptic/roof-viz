@@ -31,7 +31,7 @@ export default function CatalogPage() {
   const [adding, setAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const linesByBrand = getProductLinesByBrand();
 
   useEffect(() => {

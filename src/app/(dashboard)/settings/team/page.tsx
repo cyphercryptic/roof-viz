@@ -24,7 +24,8 @@ export default function TeamPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteRole, setInviteRole] = useState<'rep' | 'demo'>('rep');
 
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
+  const isOwner = profile?.role === 'owner';
 
   useEffect(() => {
     if (isAdmin) loadTeam();
@@ -79,7 +80,9 @@ export default function TeamPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Team Management</h1>
-        <p className="text-brand-brown/50">Invite sales reps or demo prospects</p>
+        <p className="text-brand-brown/50">
+          {isOwner ? 'Invite sales reps or demo prospects' : 'Invite sales reps to your team'}
+        </p>
       </div>
 
       {/* Invite form */}
@@ -87,37 +90,39 @@ export default function TeamPage() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            {inviteRole === 'demo' ? 'Invite Demo Prospect' : 'Invite Sales Rep'}
+            {isOwner && inviteRole === 'demo' ? 'Invite Demo Prospect' : 'Invite Sales Rep'}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Role toggle */}
-          <div className="flex gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => setInviteRole('rep')}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
-                inviteRole === 'rep'
-                  ? 'bg-brand-orange text-white'
-                  : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
-              )}
-            >
-              Sales Rep
-            </button>
-            <button
-              type="button"
-              onClick={() => setInviteRole('demo')}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
-                inviteRole === 'demo'
-                  ? 'bg-brand-orange text-white'
-                  : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
-              )}
-            >
-              Demo / Prospect
-            </button>
-          </div>
+          {/* Role toggle (only owner can invite demo prospects) */}
+          {isOwner && (
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setInviteRole('rep')}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                  inviteRole === 'rep'
+                    ? 'bg-brand-orange text-white'
+                    : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
+                )}
+              >
+                Sales Rep
+              </button>
+              <button
+                type="button"
+                onClick={() => setInviteRole('demo')}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+                  inviteRole === 'demo'
+                    ? 'bg-brand-orange text-white'
+                    : 'bg-brand-peach-light text-brand-brown/60 hover:bg-brand-peach'
+                )}
+              >
+                Demo / Prospect
+              </button>
+            </div>
+          )}
           <form onSubmit={handleInvite} className="flex gap-3">
             <div className="flex-1">
               <Input
@@ -133,7 +138,7 @@ export default function TeamPage() {
             </Button>
           </form>
           <p className="mt-2 text-xs text-brand-brown/50">
-            {inviteRole === 'demo'
+            {isOwner && inviteRole === 'demo'
               ? 'Share the link with your prospect. They\'ll get 5 free visualizations to try.'
               : 'Share the invite link with your rep. They\'ll create an account and join your team.'}
           </p>
@@ -215,10 +220,10 @@ export default function TeamPage() {
                   </div>
                 </div>
                 <Badge
-                  variant={member.role === 'admin' ? 'default' : 'secondary'}
+                  variant={member.role === 'admin' || member.role === 'owner' ? 'default' : 'secondary'}
                   className={member.role === 'demo' ? 'border-blue-300 text-blue-600 bg-blue-50' : ''}
                 >
-                  {member.role === 'demo' ? 'Demo' : member.role}
+                  {member.role === 'owner' ? 'Owner' : member.role === 'demo' ? 'Demo' : member.role}
                 </Badge>
               </div>
             ))

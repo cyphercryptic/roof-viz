@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'rep' | 'demo';
+export type UserRole = 'owner' | 'admin' | 'rep' | 'demo';
 export type VisualizationStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface Tenant {

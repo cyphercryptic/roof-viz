@@ -37,8 +37,8 @@ export default function GalleryPage() {
       .order('created_at', { ascending: false });
 
     // Non-admin users only see their own visualizations
-    // Admins see all visualizations across their team
-    if (profile.role !== 'admin') {
+    // Admins and owners see all visualizations across their team
+    if (profile.role !== 'admin' && profile.role !== 'owner') {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         query = query.eq('created_by', user.id);
@@ -84,7 +84,7 @@ export default function GalleryPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Visualization Gallery</h1>
         <p className="text-brand-brown/50">
-          {profile?.role === 'admin'
+          {profile?.role === 'admin' || profile?.role === 'owner'
             ? 'All past roof visualizations for your team'
             : 'Your roof visualizations'}
         </p>

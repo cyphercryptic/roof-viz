@@ -24,7 +24,7 @@ const adminItems = [
 
 export function Sidebar({ profile }: SidebarProps) {
   const pathname = usePathname();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const isDemo = profile?.role === 'demo';
 
   return (
@@ -103,7 +103,7 @@ export function Sidebar({ profile }: SidebarProps) {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium text-white truncate">{profile.full_name}</p>
-              <p className="text-[11px] text-white/40 capitalize">{profile.role === 'demo' ? 'Demo User' : profile.role}</p>
+              <p className="text-[11px] text-white/40 capitalize">{profile.role === 'demo' ? 'Demo User' : profile.role === 'owner' ? 'Owner' : profile.role}</p>
             </div>
           </div>
         </div>

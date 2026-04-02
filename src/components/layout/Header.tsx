@@ -34,7 +34,7 @@ export function Header({ profile }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const isDemo = profile?.role === 'demo';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -100,7 +100,7 @@ export function Header({ profile }: HeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem className="text-xs text-brand-brown/40" disabled>
-              {profile?.role === 'admin' ? 'Admin' : profile?.role === 'demo' ? 'Demo User' : 'Sales Rep'}
+              {profile?.role === 'owner' ? 'Owner' : profile?.role === 'admin' ? 'Admin' : profile?.role === 'demo' ? 'Demo User' : 'Sales Rep'}
             </DropdownMenuItem>
             {isAdmin && (
               <DropdownMenuItem onClick={() => router.push('/settings')}>

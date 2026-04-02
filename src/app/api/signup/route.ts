@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       id: userId,
       tenant_id: tenant.id,
       full_name: fullName,
-      role: 'admin',
+      role: 'owner',
     });
 
   if (profileError) {

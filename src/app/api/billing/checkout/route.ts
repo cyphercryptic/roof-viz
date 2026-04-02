@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     .eq('id', user.id)
     .single();
 
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || (profile.role !== 'admin' && profile.role !== 'owner')) {
     return NextResponse.json({ error: 'Only admins can manage billing' }, { status: 403 });
   }
 
