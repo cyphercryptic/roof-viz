@@ -40,7 +40,7 @@ const PLANS = [
     priceUnit: '/mo',
     limit: 250,
     popular: true,
-    features: ['250 visualizations/month', '10 team members', 'High quality', 'Priority support', 'Gallery sharing'],
+    features: ['250 visualizations/month', '7 team members', 'High quality', 'Priority support', 'Gallery sharing'],
   },
   {
     key: 'business' as const,
