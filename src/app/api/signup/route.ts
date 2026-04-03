@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { signupSchema, parseBody } from '@/lib/validation';
+import { sendWelcomeEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
@@ -53,6 +54,17 @@ export async function POST(request: NextRequest) {
     // Cleanup: delete tenant if profile creation fails
     await supabase.from('tenants').delete().eq('id', tenant.id);
     return NextResponse.json({ error: profileError.message }, { status: 500 });
+  }
+
+  // Send welcome email (fire-and-forget — don't block the response)
+  // We need the user's email; fetch it from Supabase Auth
+  const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
+  if (authUser?.email) {
+    sendWelcomeEmail({
+      to: authUser.email,
+      fullName,
+      companyName,
+    });
   }
 
   return NextResponse.json({ tenant });

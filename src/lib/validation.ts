@@ -66,6 +66,11 @@ export const catalogSeedSchema = z.object({
     .max(200, 'Maximum 200 products per request'),
 });
 
+export const inviteSendSchema = z.object({
+  email: z.string().email('A valid email address is required'),
+  role: z.enum(['rep', 'admin']),
+});
+
 export const billingCheckoutSchema = z.object({
   plan: z.enum(['pay_per_use', 'starter', 'pro', 'business', 'business_pro']),
 });

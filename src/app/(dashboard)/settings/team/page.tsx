@@ -47,24 +47,29 @@ export default function TeamPage() {
 
     setInviting(true);
 
-    const { error } = await supabase
-      .from('invites')
-      .insert({
-        tenant_id: profile?.tenant_id,
-        email: inviteEmail,
-        role: inviteRole,
+    try {
+      const res = await fetch('/api/invite/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
       });
 
-    if (error) {
-      toast.error(error.message);
-      setInviting(false);
-      return;
-    }
+      const data = await res.json();
 
-    toast.success(`Invite created for ${inviteEmail}`);
-    setInviteEmail('');
-    setInviting(false);
-    loadTeam();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to send invite');
+        setInviting(false);
+        return;
+      }
+
+      toast.success(`Invite sent to ${inviteEmail}`);
+      setInviteEmail('');
+      loadTeam();
+    } catch {
+      toast.error('Failed to send invite');
+    } finally {
+      setInviting(false);
+    }
   }
 
   if (!isAdmin) {
