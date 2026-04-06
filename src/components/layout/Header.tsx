@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { Image, FolderOpen, Package, Users, Settings, Menu, LogOut, BarChart3, Palette } from 'lucide-react';
+import { Image, FolderOpen, Package, Users, Settings, Menu, LogOut, BarChart3, Palette, CreditCard } from 'lucide-react';
 import type { Profile } from '@/types';
 import { useState } from 'react';
 
@@ -30,6 +30,8 @@ const adminItems = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings/team', label: 'Team', icon: Users },
   { href: '/settings/branding', label: 'Branding', icon: Palette },
+  { href: '/settings/billing', label: 'Billing', icon: CreditCard },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Header({ profile }: HeaderProps) {

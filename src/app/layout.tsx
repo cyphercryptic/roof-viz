@@ -13,8 +13,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RoofViz - AI Roof Visualization for Sales",
-  description: "Show homeowners their new roof before the first shingle is laid. AI-powered roof visualization for roofing sales teams.",
+  title: {
+    default: 'RoofViz - AI Roof Visualization for Sales',
+    template: '%s | RoofViz',
+  },
+  description: 'Show homeowners their new roof before the first shingle is laid. AI-powered roof visualization for roofing sales teams.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://roofviz.com'),
+  openGraph: {
+    title: 'RoofViz - AI Roof Visualization for Sales',
+    description: 'Show homeowners their new roof before the first shingle is laid. AI-powered roof visualization for roofing sales teams.',
+    siteName: 'RoofViz',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RoofViz - AI Roof Visualization for Sales',
+    description: 'Show homeowners their new roof before the first shingle is laid. AI-powered roof visualization for roofing sales teams.',
+  },
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

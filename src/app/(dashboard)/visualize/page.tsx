@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
 import { PhotoUploader } from '@/components/visualize/PhotoUploader';
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProductSwatch } from '@/components/catalog/ProductSwatch';
-import { Sparkles, RotateCcw, Download, Save, ArrowLeft, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { Sparkles, RotateCcw, Download, ArrowLeft, ChevronLeft, ChevronRight, Zap, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Product } from '@/types';
 
@@ -46,6 +46,7 @@ export default function VisualizePage() {
   const { profile } = useUser();
   const supabase = createClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [step, setStep] = useState<Step>('upload');
   const [products, setProducts] = useState<Product[]>([]);
@@ -239,7 +240,7 @@ export default function VisualizePage() {
             </p>
           </div>
           <a
-            href="mailto:connorf.bar9@gmail.com?subject=Interested%20in%20RoofViz"
+            href="mailto:support@roofviz.com?subject=Interested%20in%20RoofViz"
             className="px-4 py-2 bg-brand-orange text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity whitespace-nowrap"
           >
             Contact Sales
@@ -478,13 +479,11 @@ export default function VisualizePage() {
               New Photo
             </Button>
             <Button
-              onClick={() => {
-                toast.success('Visualization saved to gallery');
-              }}
+              onClick={() => router.push('/gallery')}
               className="h-12 col-span-2 sm:col-span-1"
             >
-              <Save className="mr-2 h-4 w-4" />
-              Save
+              <FolderOpen className="mr-2 h-4 w-4" />
+              View in Gallery
             </Button>
           </div>
         </div>

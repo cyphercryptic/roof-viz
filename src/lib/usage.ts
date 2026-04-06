@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
 
-const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || 'connorf.bar9@gmail.com';
+const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || 'support@roofviz.com';
 
 /**
  * Check if a tenant has remaining visualizations for their current billing period.

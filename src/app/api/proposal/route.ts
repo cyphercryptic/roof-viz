@@ -127,7 +127,12 @@ export async function POST(request: NextRequest) {
     // --- Company logo/name ---
     if (logoBytes) {
       try {
-        const logoImage = await pdfDoc.embedPng(logoBytes);
+        let logoImage;
+        try {
+          logoImage = await pdfDoc.embedPng(logoBytes);
+        } catch {
+          logoImage = await pdfDoc.embedJpg(logoBytes);
+        }
         const logoScale = Math.min(120 / logoImage.width, 40 / logoImage.height);
         const logoDims = logoImage.scale(logoScale);
         page.drawImage(logoImage, {
@@ -138,7 +143,7 @@ export async function POST(request: NextRequest) {
         });
         yPos -= logoDims.height + 10;
       } catch {
-        // If PNG embed fails (e.g. JPEG logo), just show name
+        // If both PNG and JPEG embed fail, just show name
       }
     }
 
