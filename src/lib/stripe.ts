@@ -14,6 +14,7 @@ export const PLANS = {
     name: 'Free',
     price: 0,
     visualizationLimit: 5,
+    teamMemberLimit: 1,
     stripePriceId: null,
     payPerUse: false,
     features: [
@@ -26,6 +27,7 @@ export const PLANS = {
     name: 'Pay As You Go',
     price: 0.75,
     visualizationLimit: -1, // unlimited, charged per use
+    teamMemberLimit: 1,
     stripePriceId: process.env.STRIPE_PRICE_PAY_PER_USE,
     payPerUse: true,
     features: [
@@ -39,6 +41,7 @@ export const PLANS = {
     name: 'Starter',
     price: 44,
     visualizationLimit: 100,
+    teamMemberLimit: 3,
     stripePriceId: process.env.STRIPE_PRICE_STARTER,
     payPerUse: false,
     features: [
@@ -52,6 +55,7 @@ export const PLANS = {
     name: 'Pro',
     price: 99,
     visualizationLimit: 250,
+    teamMemberLimit: 10,
     stripePriceId: process.env.STRIPE_PRICE_PRO,
     payPerUse: false,
     features: [
@@ -66,6 +70,7 @@ export const PLANS = {
     name: 'Business',
     price: 299,
     visualizationLimit: 1000,
+    teamMemberLimit: -1, // unlimited
     stripePriceId: process.env.STRIPE_PRICE_BUSINESS,
     payPerUse: false,
     features: [
@@ -80,6 +85,7 @@ export const PLANS = {
     name: 'Business Pro',
     price: 1199,
     visualizationLimit: 5000,
+    teamMemberLimit: -1, // unlimited
     stripePriceId: process.env.STRIPE_PRICE_BUSINESS_PRO,
     payPerUse: false,
     features: [

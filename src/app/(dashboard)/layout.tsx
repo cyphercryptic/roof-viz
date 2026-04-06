@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { useUser } from '@/hooks/useUser';
 import { Toaster } from '@/components/ui/sonner';
+import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { profile, loading } = useUser();
@@ -31,7 +32,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar profile={profile} />
       <div className="flex flex-1 flex-col">
         <Header profile={profile} />
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className="flex-1 p-4 md:p-8">
+          <OnboardingChecklist />
+          {children}
+        </main>
       </div>
       <Toaster />
     </div>
