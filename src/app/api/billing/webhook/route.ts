@@ -117,13 +117,39 @@ export async function POST(request: NextRequest) {
 
       const status = subscription.cancel_at_period_end ? 'canceled' : 'active';
 
+      // Try to detect plan changes (e.g. upgrades/downgrades from Stripe portal)
+      // by matching the active price ID against PLANS config.
+      const priceId = subscription.items.data[0]?.price?.id;
+      let matchedPlan: PlanKey | null = null;
+      if (priceId) {
+        for (const [key, config] of Object.entries(PLANS)) {
+          if (config.stripePriceId && config.stripePriceId === priceId) {
+            matchedPlan = key as PlanKey;
+            break;
+          }
+        }
+      }
+
+      const updatePayload: {
+        status: string;
+        current_period_start: string | null;
+        current_period_end: string | null;
+        plan?: PlanKey;
+        visualization_limit?: number;
+      } = {
+        status,
+        current_period_start: period.start,
+        current_period_end: period.end,
+      };
+
+      if (matchedPlan) {
+        updatePayload.plan = matchedPlan;
+        updatePayload.visualization_limit = PLANS[matchedPlan].visualizationLimit;
+      }
+
       await adminSupabase
         .from('subscriptions')
-        .update({
-          status,
-          current_period_start: period.start,
-          current_period_end: period.end,
-        })
+        .update(updatePayload)
         .eq('stripe_customer_id', customerId);
 
       break;

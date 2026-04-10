@@ -68,7 +68,7 @@ export const catalogSeedSchema = z.object({
 
 export const inviteSendSchema = z.object({
   email: z.string().email('A valid email address is required'),
-  role: z.enum(['rep', 'admin']),
+  role: z.enum(['rep', 'admin', 'demo']),
 });
 
 export const billingCheckoutSchema = z.object({

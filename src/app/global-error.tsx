@@ -5,10 +5,10 @@ import { useEffect } from 'react';
 
 export default function GlobalError({
   error,
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   useEffect(() => {
     Sentry.captureException(error);
@@ -23,7 +23,7 @@ export default function GlobalError({
             An unexpected error occurred. Our team has been notified.
           </p>
           <button
-            onClick={reset}
+            onClick={() => unstable_retry()}
             style={{
               padding: '10px 24px',
               backgroundColor: '#F58025',
