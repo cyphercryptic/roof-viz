@@ -18,8 +18,8 @@ export const signupSchema = z.object({
 export const visualizeSchema = z.object({
   productId: z.string().uuid(),
   originalImagePath: z.string().min(1, 'Image path is required'),
-  customerName: z.string().max(200).optional(),
-  customerAddress: z.string().max(500).optional(),
+  customerName: z.string().max(200).nullish(),
+  customerAddress: z.string().max(500).nullish(),
 });
 
 export const shareSchema = z.object({
