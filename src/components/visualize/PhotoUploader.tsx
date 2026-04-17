@@ -17,6 +17,43 @@ async function convertHeicToJpeg(file: File): Promise<File> {
   return new File([blob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
 }
 
+/**
+ * Resize a large image on the client before uploading so we stay under
+ * Vercel's 4.5MB request body limit. Server does its own Sharp resize
+ * for the AI model, so quality is bounded by that anyway.
+ */
+async function resizeIfLarge(file: File, maxDim = 2048, quality = 0.9): Promise<File> {
+  // Only resize raster formats the browser can decode via Image()
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
+  // Small files don't need resizing; Vercel limit is 4.5MB, leave headroom.
+  if (file.size < 3 * 1024 * 1024) return file;
+
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  const targetW = Math.round(width * scale);
+  const targetH = Math.round(height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    return file;
+  }
+  ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((b) => resolve(b), 'image/jpeg', quality);
+  });
+  if (!blob) return file;
+
+  const newName = file.name.replace(/\.(png|webp|jpe?g)$/i, '') + '.jpg';
+  return new File([blob], newName, { type: 'image/jpeg', lastModified: Date.now() });
+}
+
 interface PhotoUploaderProps {
   onUpload: (file: File) => void;
   preview: string | null;
@@ -27,7 +64,8 @@ interface PhotoUploaderProps {
 export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUploaderProps) {
   const handleFile = useCallback(async (file: File) => {
     const converted = await convertHeicToJpeg(file);
-    onUpload(converted);
+    const resized = await resizeIfLarge(converted);
+    onUpload(resized);
   }, [onUpload]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -98,7 +136,7 @@ export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUp
               {isDragActive ? 'Drop photo here' : 'Upload house photo'}
             </p>
             <p className="mt-1 text-sm text-brand-brown/50">
-              Take a photo or drag & drop. JPEG, PNG, or WebP up to 20MB.
+              Take a photo or drag & drop. JPEG, PNG, or WebP up to 10MB.
             </p>
           </div>
           {/* Hidden camera input for mobile */}
