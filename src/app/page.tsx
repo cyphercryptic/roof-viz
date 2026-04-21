@@ -3,7 +3,7 @@ import {
   Camera,
   Palette,
   Sparkles,
-  Image,
+  Image as ImageIcon,
   BookOpen,
   FileText,
   Users,
@@ -12,9 +12,11 @@ import {
   Paintbrush,
   Check,
   ArrowRight,
-  Star,
+  ArrowUpRight,
 } from 'lucide-react';
 import MobileNav from '@/components/landing/MobileNav';
+import HeroVisual from '@/components/landing/HeroVisual';
+import { DotRule, SectionNumber } from '@/components/landing/Ornament';
 
 /* ------------------------------------------------------------------ */
 /*  Plan data (mirrored from billing + stripe for static rendering)   */
@@ -24,20 +26,16 @@ const PLANS = [
     key: 'free',
     name: 'Free',
     priceLabel: '$0',
-    priceUnit: '/mo',
+    priceUnit: '/ mo',
     description: 'Try it out',
-    features: [
-      '5 visualizations/month',
-      '1 team member',
-      'Standard quality',
-    ],
+    features: ['5 visualizations/month', '1 team member', 'Standard quality'],
     highlighted: false,
   },
   {
     key: 'pay_per_use',
-    name: 'Pay As You Go',
+    name: 'Pay as you go',
     priceLabel: '$0.75',
-    priceUnit: '/viz',
+    priceUnit: '/ viz',
     description: 'No commitment',
     features: [
       'Unlimited visualizations',
@@ -51,7 +49,7 @@ const PLANS = [
     key: 'starter',
     name: 'Starter',
     priceLabel: '$44',
-    priceUnit: '/mo',
+    priceUnit: '/ mo',
     description: 'For solo reps',
     features: [
       '100 visualizations/month',
@@ -65,7 +63,7 @@ const PLANS = [
     key: 'pro',
     name: 'Pro',
     priceLabel: '$99',
-    priceUnit: '/mo',
+    priceUnit: '/ mo',
     description: 'Most popular',
     features: [
       '250 visualizations/month',
@@ -81,7 +79,7 @@ const PLANS = [
     key: 'business',
     name: 'Business',
     priceLabel: '$299',
-    priceUnit: '/mo',
+    priceUnit: '/ mo',
     description: 'For growing teams',
     features: [
       '1,000 visualizations/month',
@@ -98,7 +96,7 @@ const PLANS = [
     key: 'business_pro',
     name: 'Business Pro',
     priceLabel: '$1,199',
-    priceUnit: '/mo',
+    priceUnit: '/ mo',
     description: 'Enterprise scale',
     features: [
       '5,000 visualizations/month',
@@ -120,58 +118,58 @@ const PLANS = [
 const FEATURES = [
   {
     icon: Sparkles,
-    title: 'AI Visualization',
+    title: 'AI visualization',
     description:
-      'Generate photorealistic roof renderings in seconds using AI. Show homeowners their new roof before work begins.',
+      'Generate photorealistic roof renderings in seconds. Show the homeowner exactly what they are buying — not a sample board, not a brochure photo.',
     plans: 'All plans',
   },
   {
     icon: BookOpen,
-    title: 'Product Catalog',
+    title: 'Product catalog',
     description:
-      'Maintain a catalog of shingle styles, colors, and materials your team can choose from during visualizations.',
+      'Every shingle line your team sells — Timberline HDZ, Landmark, Duration, Barkwood, Estate Gray — preloaded and ready for a homeowner to flip through.',
     plans: 'All plans',
   },
   {
-    icon: Image,
-    title: 'Before & After Gallery',
+    icon: ImageIcon,
+    title: 'Before & after gallery',
     description:
-      'Save every visualization in an organized gallery. Browse, compare, and share past projects with clients.',
+      'Every visualization is saved, organized, and searchable. Pull up past jobs mid-appointment. Compare side-by-side on the kitchen counter.',
     plans: 'All plans',
   },
   {
     icon: FileText,
-    title: 'PDF Proposals',
+    title: 'Branded proposals',
     description:
-      'Generate branded PDF proposals with visualization images, product details, and pricing to close deals faster.',
+      'Generate PDF proposals with the visualization, product specs, and pricing — in your branding, ready to leave behind.',
     plans: 'Pro and above',
   },
   {
     icon: Users,
-    title: 'Team Management',
+    title: 'Team management',
     description:
-      'Invite sales reps, assign roles, and track who is generating the most visualizations across your org.',
+      'Invite your reps, assign roles, and track who is closing the most. One subscription, your whole crew.',
     plans: 'Starter and above',
   },
   {
     icon: Share2,
-    title: 'Share Links',
+    title: 'Share links',
     description:
-      'Send clients a branded link to view their roof visualization. No login required for them to see results.',
+      'Send a branded, no-login link to the homeowner after the visit. They show the spouse. You stay top of mind.',
     plans: 'Pro and above',
   },
   {
     icon: BarChart3,
-    title: 'Analytics Dashboard',
+    title: 'Analytics',
     description:
-      'Track visualization volume, team performance, and conversion metrics to optimize your sales process.',
+      'Visualizations per rep, per week. Which shingles convert. Which reps are pulling weight. Real numbers, not hunches.',
     plans: 'Business and above',
   },
   {
     icon: Paintbrush,
-    title: 'White-Label Branding',
+    title: 'White-label',
     description:
-      'Remove RoofViz branding and replace it with your own logo, colors, and domain for a fully custom experience.',
+      'Replace RoofViz branding with your own logo, colors, and custom domain. A fully private experience for your crew.',
     plans: 'Business Pro',
   },
 ];
@@ -181,171 +179,323 @@ const FEATURES = [
 /* ------------------------------------------------------------------ */
 const STEPS = [
   {
-    number: '1',
+    number: '01',
     icon: Camera,
-    title: 'Upload a Photo',
+    title: 'Upload a home photo',
     description:
-      'Snap a photo of the home or upload an existing image. Our AI detects the roof automatically.',
+      'Snap the house from the curb on your phone. Upload existing site photos. Our AI handles the rest.',
   },
   {
-    number: '2',
+    number: '02',
     icon: Palette,
-    title: 'Choose a Product',
+    title: 'Pick the shingle',
     description:
-      'Pick from your product catalog — shingle style, color, and material — or let the homeowner browse options.',
+      'Choose from your product catalog — brand, profile, color. Configured like a real order the homeowner is about to place.',
   },
   {
-    number: '3',
+    number: '03',
     icon: Sparkles,
-    title: 'Get Your Visualization',
+    title: 'Hand them the after',
     description:
-      'In seconds, see a photorealistic rendering of the new roof on the actual home. Share it or build a proposal.',
+      'Seconds later, a photorealistic rendering of the new roof on the actual home. Share it, download it, build the proposal.',
   },
 ];
 
 /* ================================================================== */
-/*  Page Component                                                    */
+/*  Page                                                              */
 /* ================================================================== */
 export default function LandingPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-brand-cream">
-      {/* ---------------------------------------------------------- */}
-      {/*  Navigation                                                */}
-      {/* ---------------------------------------------------------- */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border">
+    <div className="min-h-screen flex flex-col bg-brand-cream text-brand-brown selection:bg-brand-orange selection:text-brand-cream">
+      {/* ============================================================ */}
+      {/*  Top hairline + masthead                                     */}
+      {/* ============================================================ */}
+      <header className="sticky top-0 z-50 bg-brand-cream/85 backdrop-blur-md border-b border-brand-brown/15">
+        {/* Ultra-fine top rule — editorial detail */}
+        <div className="h-[3px] w-full bg-gradient-to-r from-brand-orange via-brand-peach-deep to-brand-wheat" />
         <nav className="relative mx-auto max-w-7xl flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-orange flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-brand-brown">RoofViz</span>
+          {/* Logo — serif wordmark with orange period */}
+          <Link href="/" className="flex items-baseline gap-1 group">
+            <span className="font-display font-medium text-2xl tracking-tight text-brand-brown">
+              RoofViz
+            </span>
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-orange translate-y-[-2px]" />
           </Link>
 
-          {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-8">
-            <a
-              href="#how-it-works"
-              className="text-sm font-medium text-brand-brown/70 hover:text-brand-orange transition-colors"
-            >
-              How It Works
-            </a>
-            <a
-              href="#features"
-              className="text-sm font-medium text-brand-brown/70 hover:text-brand-orange transition-colors"
-            >
-              Features
-            </a>
-            <a
-              href="#pricing"
-              className="text-sm font-medium text-brand-brown/70 hover:text-brand-orange transition-colors"
-            >
-              Pricing
-            </a>
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-10">
+            {[
+              { href: '#how', label: 'How it works' },
+              { href: '#why', label: 'Why' },
+              { href: '#features', label: 'Features' },
+              { href: '#pricing', label: 'Pricing' },
+            ].map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="font-mono text-[10px] tracking-[0.24em] uppercase text-brand-brown/65 hover:text-brand-orange transition-colors"
+              >
+                {l.label}
+              </a>
+            ))}
           </div>
 
-          {/* Desktop auth buttons */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Auth buttons */}
+          <div className="hidden md:flex items-center gap-2">
             <Link
               href="/login"
-              className="text-sm font-medium text-brand-brown hover:text-brand-orange transition-colors px-4 py-2"
+              className="font-mono text-[10px] tracking-[0.24em] uppercase text-brand-brown/65 hover:text-brand-orange transition-colors px-3 py-2"
             >
-              Log In
+              Log in
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center rounded-lg bg-brand-orange px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-orange-dark transition-colors"
+              className="group inline-flex items-center gap-2 rounded-full bg-brand-brown px-5 py-2.5 font-mono text-[10px] tracking-[0.24em] uppercase text-brand-cream hover:bg-brand-orange transition-colors"
             >
-              Start Free Trial
+              Start free
+              <ArrowUpRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </Link>
           </div>
 
-          {/* Mobile menu */}
           <MobileNav />
         </nav>
       </header>
 
       <main className="flex-1">
-        {/* -------------------------------------------------------- */}
-        {/*  Hero Section                                            */}
-        {/* -------------------------------------------------------- */}
+        {/* ============================================================ */}
+        {/*  HERO — editorial, asymmetric                                */}
+        {/* ============================================================ */}
         <section className="relative overflow-hidden">
-          {/* Decorative gradient */}
-          <div className="absolute inset-0 -z-10">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120%] h-[500px] bg-gradient-to-b from-brand-peach-light to-transparent rounded-b-[50%] opacity-60" />
+          {/* Ambient warm halo */}
+          <div className="pointer-events-none absolute inset-0 warm-halo" />
+          {/* Subtle grain */}
+          <div className="pointer-events-none absolute inset-0 grain" />
+
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-12 pb-20 sm:pt-16 sm:pb-28 lg:pt-20 lg:pb-32">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-center">
+              {/* Left — editorial headline */}
+              <div className="lg:col-span-7 rise rise-1">
+                <div className="mb-8 flex items-center gap-4">
+                  <SectionNumber n="00" label="AI for Roofing Sales" />
+                </div>
+
+                <h1 className="font-display font-light text-5xl sm:text-6xl lg:text-7xl xl:text-[5.5rem] leading-[0.95] tracking-[-0.02em] text-brand-brown">
+                  <span className="block">Walk in with</span>
+                  <span className="block">
+                    the{' '}
+                    <em className="not-italic font-display italic font-normal text-brand-orange relative">
+                      after
+                      <svg
+                        className="absolute -bottom-2 left-0 w-full"
+                        viewBox="0 0 240 10"
+                        preserveAspectRatio="none"
+                        aria-hidden
+                      >
+                        <path
+                          d="M2,6 Q60,1 120,5 T238,4"
+                          stroke="#F58025"
+                          strokeWidth="2"
+                          fill="none"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </em>
+                    ,
+                  </span>
+                  <span className="block text-brand-brown-soft font-extralight">
+                    not a sample board.
+                  </span>
+                </h1>
+
+                <p className="mt-8 max-w-xl text-lg sm:text-xl text-brand-brown-soft leading-relaxed">
+                  RoofViz is how modern roofing reps run appointments. Snap a
+                  curb-side photo, pick a shingle, hand back a photorealistic
+                  rendering of the new roof — in under a minute.
+                </p>
+
+                <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 rise rise-3">
+                  <Link
+                    href="/signup"
+                    className="group inline-flex items-center gap-3 rounded-full bg-brand-orange px-7 py-4 font-sans text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(245,128,37,0.6)] hover:bg-brand-orange-dark transition-all hover:shadow-[0_14px_38px_-10px_rgba(245,128,37,0.75)]"
+                  >
+                    Start free — 5/month
+                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <Link
+                    href="#how"
+                    className="group inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.22em] uppercase text-brand-brown hover:text-brand-orange transition-colors"
+                  >
+                    See how it works
+                    <span className="h-px w-8 bg-brand-brown group-hover:bg-brand-orange transition-colors" />
+                  </Link>
+                </div>
+
+                <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[10px] tracking-[0.2em] uppercase text-brand-brown-mute rise rise-4">
+                  <span>No credit card</span>
+                  <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                  <span>5 free renders / month</span>
+                  <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                  <span>Cancel anytime</span>
+                </div>
+              </div>
+
+              {/* Right — hero visual */}
+              <div className="lg:col-span-5 rise rise-2">
+                <div className="relative max-w-md mx-auto lg:max-w-none">
+                  <HeroVisual />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 pb-24 sm:pt-28 sm:pb-32 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-brand-peach-light border border-brand-peach px-4 py-1.5 text-sm font-medium text-brand-brown mb-6">
-              <Sparkles className="h-4 w-4 text-brand-orange" />
-              AI-Powered Roof Visualization
+          {/* Marquee-style brand strip — shingle brands the catalog supports */}
+          <div className="relative border-y border-brand-brown/15 bg-brand-cream-soft">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-8">
+              <span className="font-mono text-[10px] tracking-[0.24em] uppercase text-brand-brown-mute whitespace-nowrap">
+                Catalog includes
+              </span>
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-2 font-display text-lg sm:text-xl italic text-brand-brown-soft/90">
+                <span>GAF</span>
+                <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                <span>CertainTeed</span>
+                <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                <span>Owens Corning</span>
+                <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                <span>Atlas</span>
+                <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                <span>IKO</span>
+                <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                <span>TAMKO</span>
+                <span className="h-1 w-1 rounded-full bg-brand-peach-deep" />
+                <span>Malarkey</span>
+              </div>
             </div>
-
-            <h1 className="mx-auto max-w-4xl text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-brand-brown leading-tight">
-              Show Homeowners Their{' '}
-              <span className="text-brand-orange">New Roof</span> Before the
-              First Shingle Is Laid
-            </h1>
-
-            <p className="mx-auto mt-6 max-w-2xl text-lg sm:text-xl text-brand-brown/60 leading-relaxed">
-              Upload a photo, pick a product, and get a photorealistic
-              visualization in seconds. Close more deals by helping customers
-              see exactly what they are buying.
-            </p>
-
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className="inline-flex items-center justify-center rounded-lg bg-brand-orange px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-brand-orange/25 hover:bg-brand-orange-dark transition-colors"
-              >
-                Start Free Trial
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center rounded-lg border-2 border-brand-brown/20 bg-white px-8 py-3.5 text-base font-semibold text-brand-brown hover:border-brand-orange hover:text-brand-orange transition-colors"
-              >
-                See Demo
-              </Link>
-            </div>
-
-            <p className="mt-4 text-sm text-brand-brown/40">
-              No credit card required. 5 free visualizations every month.
-            </p>
           </div>
         </section>
 
-        {/* -------------------------------------------------------- */}
-        {/*  How It Works                                            */}
-        {/* -------------------------------------------------------- */}
-        <section id="how-it-works" className="py-20 sm:py-28 bg-white">
+        {/* ============================================================ */}
+        {/*  HOW IT WORKS                                                */}
+        {/* ============================================================ */}
+        <section id="how" className="relative py-24 sm:py-32 scroll-mt-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold text-brand-brown">
-                How It Works
+            <div className="max-w-3xl mb-20">
+              <SectionNumber n="01" label="The Workflow" />
+              <h2 className="mt-5 font-display font-light text-4xl sm:text-5xl lg:text-6xl leading-[1.02] tracking-[-0.02em] text-brand-brown">
+                Three steps.{' '}
+                <em className="font-display italic text-brand-peach-deep">
+                  Under a minute.
+                </em>
               </h2>
-              <p className="mt-4 text-lg text-brand-brown/60 max-w-2xl mx-auto">
-                Three simple steps from photo to photorealistic visualization.
+              <p className="mt-6 text-lg text-brand-brown-soft leading-relaxed">
+                No learning curve. Built to be run curb-side, on a phone, with
+                a homeowner reading over your shoulder.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
-              {STEPS.map((step) => (
-                <div key={step.number} className="relative text-center group">
-                  {/* Step number badge */}
-                  <div className="mx-auto mb-6 relative">
-                    <div className="h-20 w-20 mx-auto rounded-2xl bg-brand-peach-light flex items-center justify-center group-hover:bg-brand-peach transition-colors">
-                      <step.icon className="h-9 w-9 text-brand-orange" />
-                    </div>
-                    <span className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-brand-orange text-white text-sm font-bold flex items-center justify-center shadow-md">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-y-16 md:gap-x-14">
+              {STEPS.map((step, i) => (
+                <div key={step.number} className="relative group">
+                  {/* Top rule */}
+                  <div className="h-px w-full bg-brand-brown/18 mb-8" />
+
+                  {/* Large numeric */}
+                  <div className="flex items-start justify-between mb-10">
+                    <div className="font-display italic font-extralight text-[6.5rem] leading-none text-brand-orange/90">
                       {step.number}
-                    </span>
+                    </div>
+                    <div className="mt-4 w-12 h-12 flex items-center justify-center rounded-full border border-brand-brown/20 group-hover:border-brand-orange group-hover:rotate-6 transition-all">
+                      <step.icon className="h-5 w-5 text-brand-brown group-hover:text-brand-orange transition-colors" />
+                    </div>
                   </div>
-                  <h3 className="text-xl font-semibold text-brand-brown mb-2">
+
+                  <h3 className="font-display font-normal text-2xl sm:text-3xl leading-tight text-brand-brown tracking-[-0.01em] mb-4">
                     {step.title}
                   </h3>
-                  <p className="text-brand-brown/60 leading-relaxed">
+                  <p className="text-brand-brown-soft leading-relaxed text-[15px] max-w-sm">
                     {step.description}
+                  </p>
+
+                  {/* Hidden visual cue on last step */}
+                  {i === STEPS.length - 1 && (
+                    <div className="mt-8 inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.22em] uppercase text-brand-orange">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+                      Deal closes
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================ */}
+        {/*  WHY IT WORKS — editorial pull quote + benefits              */}
+        {/* ============================================================ */}
+        <section
+          id="why"
+          className="relative py-24 sm:py-32 bg-brand-brown text-brand-cream overflow-hidden scroll-mt-24"
+        >
+          {/* Warm vignette */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-40 mix-blend-overlay"
+            style={{
+              background:
+                'radial-gradient(ellipse 60% 60% at 80% 20%, rgba(245,128,37,0.45), transparent 60%)',
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 grain opacity-40" />
+
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="max-w-3xl mb-16">
+              <div className="inline-flex items-center gap-3 font-mono text-[10px] tracking-[0.32em] uppercase text-brand-wheat">
+                <span className="text-brand-peach font-medium">N° 02</span>
+                <span className="h-px w-8 bg-brand-wheat/50" />
+                <span>On Selling Roofs</span>
+              </div>
+            </div>
+
+            {/* Pull quote */}
+            <blockquote className="max-w-5xl mb-20">
+              <p className="font-display font-extralight text-4xl sm:text-5xl lg:text-6xl xl:text-7xl leading-[1.05] tracking-[-0.02em] text-brand-cream text-balance">
+                A homeowner doesn&rsquo;t buy a{' '}
+                <em className="font-display italic text-brand-peach">shingle</em>.
+                {' '}They buy the{' '}
+                <em className="font-display italic text-brand-peach">feeling</em>
+                {' '}of pulling into their driveway and seeing it{' '}
+                <em className="font-display italic text-brand-peach">
+                  finally finished
+                </em>
+                .
+              </p>
+            </blockquote>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-brand-cream/15">
+              {[
+                {
+                  label: 'In-home, in-hand',
+                  body:
+                    'Built for iPhone and iPad during the kitchen-table consult. Snap, configure, render, hand back — without losing the room.',
+                },
+                {
+                  label: 'Your catalog, your brand',
+                  body:
+                    'Load every shingle your team sells. Render in your colors. Proposals leave with your logo on them, not ours.',
+                },
+                {
+                  label: 'The whole crew, one roof',
+                  body:
+                    'Invite every rep. Track who’s running visualizations. Build a shared gallery of closed jobs for referrals and door-knocks.',
+                },
+              ].map((b, i) => (
+                <div key={b.label} className="bg-brand-brown p-10 sm:p-12 relative">
+                  <div className="font-mono text-[10px] tracking-[0.28em] uppercase text-brand-peach mb-5">
+                    {String(i + 1).padStart(2, '0')}
+                  </div>
+                  <h3 className="font-display font-normal text-2xl text-brand-cream mb-4 tracking-[-0.01em]">
+                    {b.label}
+                  </h3>
+                  <p className="text-brand-cream/70 leading-relaxed text-[15px]">
+                    {b.body}
                   </p>
                 </div>
               ))}
@@ -353,38 +503,46 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* -------------------------------------------------------- */}
-        {/*  Features Grid                                           */}
-        {/* -------------------------------------------------------- */}
-        <section id="features" className="py-20 sm:py-28">
+        {/* ============================================================ */}
+        {/*  FEATURES — magazine grid                                    */}
+        {/* ============================================================ */}
+        <section id="features" className="relative py-24 sm:py-32 scroll-mt-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold text-brand-brown">
-                Everything You Need to Sell More Roofs
-              </h2>
-              <p className="mt-4 text-lg text-brand-brown/60 max-w-2xl mx-auto">
-                From AI-powered visualizations to branded proposals, RoofViz
-                gives your sales team an unfair advantage.
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-16">
+              <div className="max-w-2xl">
+                <SectionNumber n="03" label="The Features" />
+                <h2 className="mt-5 font-display font-light text-4xl sm:text-5xl lg:text-6xl leading-[1.02] tracking-[-0.02em] text-brand-brown">
+                  Everything you need
+                  <br />
+                  <em className="font-display italic text-brand-peach-deep">
+                    and nothing you don&rsquo;t.
+                  </em>
+                </h2>
+              </div>
+              <p className="max-w-sm text-brand-brown-soft leading-relaxed">
+                AI rendering is the center. Everything else is what makes it
+                usable by a real crew on a real Tuesday.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {FEATURES.map((feature) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-brand-brown/15 border border-brand-brown/15 rounded-xl overflow-hidden">
+              {FEATURES.map((f) => (
                 <div
-                  key={feature.title}
-                  className="rounded-xl border border-border bg-white p-6 hover:shadow-lg hover:border-brand-peach transition-all"
+                  key={f.title}
+                  className="group relative bg-brand-cream-soft p-7 hover:bg-brand-ivory transition-colors"
                 >
-                  <div className="h-12 w-12 rounded-lg bg-brand-peach-light flex items-center justify-center mb-4">
-                    <feature.icon className="h-6 w-6 text-brand-orange" />
-                  </div>
-                  <h3 className="font-semibold text-brand-brown mb-2">
-                    {feature.title}
+                  <f.icon
+                    className="h-6 w-6 text-brand-orange mb-5 group-hover:rotate-[-6deg] transition-transform"
+                    strokeWidth={1.5}
+                  />
+                  <h3 className="font-display font-normal text-xl text-brand-brown tracking-[-0.01em] mb-2.5">
+                    {f.title}
                   </h3>
-                  <p className="text-sm text-brand-brown/60 leading-relaxed mb-3">
-                    {feature.description}
+                  <p className="text-[14px] text-brand-brown-soft leading-relaxed mb-5">
+                    {f.description}
                   </p>
-                  <span className="inline-block text-xs font-medium text-brand-orange bg-brand-peach-light px-2.5 py-1 rounded-full">
-                    {feature.plans}
+                  <span className="inline-block font-mono text-[9px] tracking-[0.22em] uppercase text-brand-orange-dark border border-brand-peach-deep/40 rounded-full px-2.5 py-1">
+                    {f.plans}
                   </span>
                 </div>
               ))}
@@ -392,80 +550,120 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* -------------------------------------------------------- */}
-        {/*  Pricing Section                                         */}
-        {/* -------------------------------------------------------- */}
-        <section id="pricing" className="py-20 sm:py-28 bg-white">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold text-brand-brown">
-                Simple, Transparent Pricing
+        {/* ============================================================ */}
+        {/*  PRICING                                                     */}
+        {/* ============================================================ */}
+        <section
+          id="pricing"
+          className="relative py-24 sm:py-32 bg-brand-wheat-soft scroll-mt-24 overflow-hidden"
+        >
+          <div className="pointer-events-none absolute inset-0 grain opacity-50" />
+
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="max-w-3xl mb-20 text-center mx-auto">
+              <SectionNumber n="04" label="Pricing" />
+              <h2 className="mt-5 font-display font-light text-4xl sm:text-5xl lg:text-6xl leading-[1.02] tracking-[-0.02em] text-brand-brown">
+                Start free.{' '}
+                <em className="font-display italic text-brand-orange">
+                  Grow into it.
+                </em>
               </h2>
-              <p className="mt-4 text-lg text-brand-brown/60 max-w-2xl mx-auto">
-                Start free with 5 visualizations per month. Upgrade as your
-                business grows.
+              <p className="mt-6 text-lg text-brand-brown-soft leading-relaxed">
+                Five free renderings a month, forever. Pay as you go when the
+                work is lumpy. Subscribe when it&rsquo;s steady.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {PLANS.map((plan) => (
                 <div
                   key={plan.key}
-                  className={`relative rounded-xl border p-6 flex flex-col ${
+                  className={`relative flex flex-col rounded-2xl p-7 transition-all ${
                     plan.highlighted
-                      ? 'border-brand-orange ring-2 ring-brand-orange bg-white shadow-lg'
-                      : 'border-border bg-white hover:border-brand-peach'
-                  } transition-all`}
+                      ? 'bg-brand-brown text-brand-cream ring-1 ring-brand-orange shadow-[0_30px_60px_-20px_rgba(62,35,24,0.35)]'
+                      : 'bg-brand-cream-soft border border-brand-brown/15 hover:border-brand-peach-deep/50'
+                  }`}
                 >
                   {plan.highlighted && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-brand-orange px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                        <Star className="h-3 w-3" />
-                        Most Popular
+                    <div className="absolute -top-3 left-7">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-orange px-3 py-1 font-mono text-[9px] tracking-[0.24em] uppercase text-brand-cream shadow-lg">
+                        <span className="h-1 w-1 rounded-full bg-brand-cream" />
+                        Most popular
                       </span>
                     </div>
                   )}
 
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-brand-brown">
+                  <div className="mb-6">
+                    <h3
+                      className={`font-display font-normal text-2xl tracking-[-0.01em] ${
+                        plan.highlighted ? 'text-brand-cream' : 'text-brand-brown'
+                      }`}
+                    >
                       {plan.name}
                     </h3>
-                    <p className="text-sm text-brand-brown/50">
+                    <p
+                      className={`mt-1 font-mono text-[10px] tracking-[0.24em] uppercase ${
+                        plan.highlighted
+                          ? 'text-brand-peach'
+                          : 'text-brand-brown-mute'
+                      }`}
+                    >
                       {plan.description}
                     </p>
                   </div>
 
-                  <div className="mb-6">
-                    <span className="text-4xl font-bold text-brand-brown">
+                  <div className="mb-7 flex items-baseline gap-2">
+                    <span
+                      className={`font-display font-light text-5xl sm:text-6xl tracking-[-0.03em] leading-none ${
+                        plan.highlighted ? 'text-brand-cream' : 'text-brand-brown'
+                      }`}
+                    >
                       {plan.priceLabel}
                     </span>
-                    <span className="text-brand-brown/50 ml-1">
+                    <span
+                      className={`font-mono text-xs tracking-wider ${
+                        plan.highlighted
+                          ? 'text-brand-cream/60'
+                          : 'text-brand-brown-mute'
+                      }`}
+                    >
                       {plan.priceUnit}
                     </span>
                   </div>
 
-                  <ul className="space-y-2.5 mb-8 flex-1">
+                  <ul className="space-y-3 mb-8 flex-1">
                     {plan.features.map((f) => (
                       <li
                         key={f}
-                        className="flex items-start gap-2 text-sm text-brand-brown/70"
+                        className={`flex items-start gap-2.5 text-sm ${
+                          plan.highlighted
+                            ? 'text-brand-cream/85'
+                            : 'text-brand-brown-soft'
+                        }`}
                       >
-                        <Check className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                        {f}
+                        <Check
+                          className={`h-4 w-4 mt-0.5 shrink-0 ${
+                            plan.highlighted
+                              ? 'text-brand-peach'
+                              : 'text-brand-orange'
+                          }`}
+                          strokeWidth={2}
+                        />
+                        <span>{f}</span>
                       </li>
                     ))}
                   </ul>
 
                   <Link
                     href="/signup"
-                    className={`inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-full py-3 font-mono text-[10px] tracking-[0.24em] uppercase transition-colors ${
                       plan.highlighted
-                        ? 'bg-brand-orange text-white hover:bg-brand-orange-dark shadow-sm'
-                        : 'border-2 border-brand-brown/15 text-brand-brown hover:border-brand-orange hover:text-brand-orange'
+                        ? 'bg-brand-orange text-white hover:bg-brand-orange-dark'
+                        : 'border border-brand-brown/30 text-brand-brown hover:bg-brand-brown hover:text-brand-cream hover:border-brand-brown'
                     }`}
                   >
-                    Get Started
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    Get started
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               ))}
@@ -473,138 +671,149 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* -------------------------------------------------------- */}
-        {/*  Social Proof / Trust                                    */}
-        {/* -------------------------------------------------------- */}
-        <section className="py-20 sm:py-28">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-brand-brown mb-4">
-              Trusted by Roofing Companies Nationwide
-            </h2>
-            <p className="text-lg text-brand-brown/60 max-w-2xl mx-auto mb-16">
-              Sales teams across the country use RoofViz to close more deals,
-              faster.
-            </p>
+        {/* ============================================================ */}
+        {/*  CLOSING CTA                                                 */}
+        {/* ============================================================ */}
+        <section className="relative py-24 sm:py-32 bg-brand-brown-deep overflow-hidden">
+          {/* Layered gradients for depth */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(ellipse 80% 60% at 30% 20%, rgba(245,128,37,0.35), transparent 60%), radial-gradient(ellipse 80% 80% at 80% 90%, rgba(224,155,99,0.22), transparent 60%)',
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 grain opacity-40" />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                {
-                  quote:
-                    'RoofViz completely changed how we sell. Homeowners love seeing their new roof before we start.',
-                  name: 'Mike R.',
-                  role: 'Sales Manager',
-                },
-                {
-                  quote:
-                    'We went from closing 20% of appointments to over 40%. The visualizations sell themselves.',
-                  name: 'Sarah T.',
-                  role: 'Owner, Apex Roofing',
-                },
-                {
-                  quote:
-                    'The PDF proposals are a game-changer. Professional, branded, and ready in seconds.',
-                  name: 'Jason L.',
-                  role: 'Regional Sales Lead',
-                },
-              ].map((testimonial) => (
-                <div
-                  key={testimonial.name}
-                  className="rounded-xl border border-border bg-white p-6 text-left"
-                >
-                  <div className="flex gap-1 mb-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className="h-4 w-4 fill-brand-orange text-brand-orange"
-                      />
-                    ))}
-                  </div>
-                  <p className="text-brand-brown/70 leading-relaxed mb-4 italic">
-                    &ldquo;{testimonial.quote}&rdquo;
-                  </p>
-                  <div>
-                    <p className="font-semibold text-brand-brown text-sm">
-                      {testimonial.name}
-                    </p>
-                    <p className="text-xs text-brand-brown/50">
-                      {testimonial.role}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          <div className="relative mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center">
+            <div className="inline-flex items-center gap-3 font-mono text-[10px] tracking-[0.32em] uppercase text-brand-peach mb-8">
+              <span className="h-px w-8 bg-brand-peach/50" />
+              <span>Start today</span>
+              <span className="h-px w-8 bg-brand-peach/50" />
             </div>
-          </div>
-        </section>
-
-        {/* -------------------------------------------------------- */}
-        {/*  Final CTA                                               */}
-        {/* -------------------------------------------------------- */}
-        <section className="py-20 sm:py-28 bg-brand-brown">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Ready to Close More Deals?
+            <h2 className="font-display font-extralight text-5xl sm:text-6xl lg:text-7xl leading-[1.02] tracking-[-0.02em] text-brand-cream">
+              Your next appointment
+              <br />
+              is{' '}
+              <em className="font-display italic text-brand-peach">
+                already warmer
+              </em>
+              .
             </h2>
-            <p className="text-lg text-white/60 mb-10 max-w-2xl mx-auto">
-              Start visualizing roofs today with 5 free visualizations per
-              month. No credit card required.
+            <p className="mt-8 max-w-xl mx-auto text-lg text-brand-cream/70 leading-relaxed">
+              Five free visualizations every month. No card, no commitment —
+              just better appointments.
             </p>
-            <Link
-              href="/signup"
-              className="inline-flex items-center justify-center rounded-lg bg-brand-orange px-8 py-4 text-base font-semibold text-white shadow-lg shadow-brand-orange/25 hover:bg-brand-orange-dark transition-colors"
-            >
-              Start Your Free Trial
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
+            <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                href="/signup"
+                className="group inline-flex items-center gap-3 rounded-full bg-brand-cream px-8 py-4 font-sans text-sm font-medium text-brand-brown shadow-[0_14px_40px_-10px_rgba(0,0,0,0.4)] hover:bg-brand-wheat transition-colors"
+              >
+                Start free
+                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link
+                href="/login"
+                className="font-mono text-[10px] tracking-[0.28em] uppercase text-brand-cream/70 hover:text-brand-cream transition-colors"
+              >
+                Already have an account? Log in
+              </Link>
+            </div>
           </div>
         </section>
       </main>
 
-      {/* ---------------------------------------------------------- */}
-      {/*  Footer                                                    */}
-      {/* ---------------------------------------------------------- */}
-      <footer className="bg-brand-brown border-t border-white/10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-brand-orange flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-white" />
+      {/* ============================================================ */}
+      {/*  FOOTER — colophon                                           */}
+      {/* ============================================================ */}
+      <footer className="relative bg-brand-brown text-brand-cream">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+            {/* Masthead */}
+            <div className="md:col-span-5">
+              <Link href="/" className="inline-flex items-baseline gap-1">
+                <span className="font-display font-medium text-3xl tracking-tight text-brand-cream">
+                  RoofViz
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-orange translate-y-[-4px]" />
+              </Link>
+              <p className="mt-5 max-w-sm text-brand-cream/55 leading-relaxed text-sm">
+                AI-powered roof visualization — built for the reps, estimators,
+                and owners who sell shingles every day.
+              </p>
+
+              <div className="mt-8">
+                <DotRule className="w-40 !gap-2 !opacity-50" />
               </div>
-              <span className="text-xl font-bold text-white">RoofViz</span>
             </div>
 
             {/* Links */}
-            <div className="flex items-center gap-6 text-sm">
-              <Link
-                href="/terms"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/privacy"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                Privacy
-              </Link>
-              <Link
-                href="/login"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                Log In
-              </Link>
-              <Link
-                href="/signup"
-                className="text-white/50 hover:text-white transition-colors"
-              >
-                Sign Up
-              </Link>
+            <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-10">
+              <div>
+                <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-brand-peach mb-5">
+                  Product
+                </div>
+                <ul className="space-y-3 text-sm">
+                  <li>
+                    <a href="#how" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      How it works
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#features" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      Features
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#pricing" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      Pricing
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-brand-peach mb-5">
+                  Account
+                </div>
+                <ul className="space-y-3 text-sm">
+                  <li>
+                    <Link href="/login" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      Log in
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/signup" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      Start free
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <div className="font-mono text-[9px] tracking-[0.3em] uppercase text-brand-peach mb-5">
+                  Legal
+                </div>
+                <ul className="space-y-3 text-sm">
+                  <li>
+                    <Link href="/terms" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      Terms
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/privacy" className="text-brand-cream/70 hover:text-brand-cream transition-colors">
+                      Privacy
+                    </Link>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-white/10 text-center">
-            <p className="text-sm text-white/40">
-              &copy; {new Date().getFullYear()} RoofViz. All rights reserved.
+          <div className="mt-16 pt-8 border-t border-brand-cream/12 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-brand-cream/45">
+              © {new Date().getFullYear()} RoofViz · All rights reserved
+            </p>
+            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-brand-cream/45">
+              Set in Fraunces &amp; DM Sans
             </p>
           </div>
         </div>

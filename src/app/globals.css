@@ -8,9 +8,14 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+
+  /* Typography */
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-display);
+
+  /* shadcn tokens */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,13 +52,35 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  /* Custom brand palette */
-  --color-brand-cream: #FFFDF5;
-  --color-brand-peach: #FFCF9E;
+
+  /* ============================================================
+     Brand palette — warm amber editorial
+     Core tokens (kept stable for dashboard/auth compatibility),
+     plus editorial extensions for the landing page.
+     ============================================================ */
+
+  /* Cream canvases */
+  --color-brand-cream: #FFFDF5;          /* Dominant page background */
+  --color-brand-cream-soft: #FBF4E4;     /* Warmer cream — content surfaces */
+  --color-brand-ivory: #FFF9EC;          /* Very soft paper */
+
+  /* Peach / wheat — warm stratification */
+  --color-brand-peach: #FFCF9E;          /* Primary warm mid-tone */
+  --color-brand-peach-light: #FFF0DC;    /* Hover / subtle accents */
+  --color-brand-peach-deep: #E09B63;     /* Terracotta — decorative accents */
+  --color-brand-wheat: #EEDDB6;          /* Wheat band — pricing background */
+  --color-brand-wheat-soft: #F7ECD3;     /* Lighter wheat */
+
+  /* Orange — primary action, editorial emphasis (italic word color) */
   --color-brand-orange: #F58025;
-  --color-brand-brown: #3E2318;
   --color-brand-orange-dark: #D96A10;
-  --color-brand-peach-light: #FFF0DC;
+  --color-brand-orange-deep: #A84D06;    /* Deep roast — closing CTA background */
+
+  /* Brown ink — text */
+  --color-brand-brown: #3E2318;
+  --color-brand-brown-soft: #6A4A3A;     /* Secondary text */
+  --color-brand-brown-mute: #957866;     /* Tertiary / metadata */
+  --color-brand-brown-deep: #1F130C;     /* Deeper ink for closing sections */
 }
 
 :root {
@@ -96,9 +123,87 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "ss01", "cv11";
   }
   html {
     @apply font-sans;
   }
+
+  /* Selection — warm amber */
+  ::selection {
+    background: #F58025;
+    color: #FFFDF5;
+  }
+}
+
+/* ============================================================
+   Editorial ornaments + textures used on the landing page
+   ============================================================ */
+@layer utilities {
+  /* Subtle film grain — layered via ::after on a relative parent */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.075;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.243 0 0 0 0 0.137 0 0 0 0 0.094 0 0 0 0.7 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Fine editorial hairline */
+  .hair {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-brand-brown) 20%,
+      var(--color-brand-brown) 80%,
+      transparent
+    );
+    opacity: 0.22;
+  }
+
+  /* Warm ambient glow behind hero */
+  .warm-halo {
+    background:
+      radial-gradient(
+        ellipse 80% 60% at 70% 30%,
+        rgba(245, 128, 37, 0.18),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 70% 70% at 15% 85%,
+        rgba(224, 155, 99, 0.16),
+        transparent 55%
+      );
+  }
+
+  /* Staggered rise on mount */
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .rise {
+    animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .rise-1 { animation-delay: 0.05s; }
+  .rise-2 { animation-delay: 0.15s; }
+  .rise-3 { animation-delay: 0.28s; }
+  .rise-4 { animation-delay: 0.42s; }
+  .rise-5 { animation-delay: 0.58s; }
+
+  /* Subtle floating drift for decorative ornaments */
+  @keyframes drift {
+    0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+    50% { transform: translate3d(0, -8px, 0) rotate(0.5deg); }
+  }
+  .drift { animation: drift 9s ease-in-out infinite; }
 }

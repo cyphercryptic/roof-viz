@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 
 const navLinks = [
-  { href: '#how-it-works', label: 'How It Works' },
+  { href: '#how', label: 'How it works' },
+  { href: '#why', label: 'Why' },
   { href: '#features', label: 'Features' },
   { href: '#pricing', label: 'Pricing' },
 ];
@@ -24,32 +25,32 @@ export default function MobileNav() {
       </button>
 
       {open && (
-        <div className="md:hidden absolute top-full left-0 right-0 bg-white border-b border-border shadow-lg z-50">
-          <div className="px-4 py-3 space-y-1">
+        <div className="md:hidden absolute top-full left-0 right-0 bg-brand-cream border-b border-brand-brown/15 shadow-[0_20px_40px_-10px_rgba(62,35,24,0.2)] z-50">
+          <div className="px-4 py-5 space-y-1">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
-                className="block px-3 py-2 rounded-md text-sm font-medium text-brand-brown hover:bg-brand-peach-light transition-colors"
+                className="block px-3 py-3 font-mono text-[10px] tracking-[0.24em] uppercase text-brand-brown hover:text-brand-orange hover:bg-brand-peach-light/60 transition-colors rounded-md"
               >
                 {link.label}
               </a>
             ))}
-            <div className="pt-3 border-t border-border space-y-2">
+            <div className="pt-4 mt-3 border-t border-brand-brown/15 space-y-2">
               <Link
                 href="/login"
                 onClick={() => setOpen(false)}
-                className="block px-3 py-2 rounded-md text-sm font-medium text-brand-brown hover:bg-brand-peach-light transition-colors"
+                className="block px-3 py-3 font-mono text-[10px] tracking-[0.24em] uppercase text-brand-brown hover:text-brand-orange transition-colors"
               >
-                Log In
+                Log in
               </Link>
               <Link
                 href="/signup"
                 onClick={() => setOpen(false)}
-                className="block px-3 py-2 rounded-md text-sm font-medium text-white bg-brand-orange hover:bg-brand-orange-dark transition-colors text-center"
+                className="block px-5 py-3 font-mono text-[10px] tracking-[0.24em] uppercase text-brand-cream bg-brand-brown hover:bg-brand-orange transition-colors text-center rounded-full"
               >
-                Start Free Trial
+                Start free
               </Link>
             </div>
           </div>
