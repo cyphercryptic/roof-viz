@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  const supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,10 +24,18 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/signup') ||
-    request.nextUrl.pathname.startsWith('/invite');
-  const isPublicPage = request.nextUrl.pathname.startsWith('/share');
+  const pathname = request.nextUrl.pathname;
+  const isAuthPage = pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/invite');
+  // Publicly reachable pages (marketing, legal, share links, password reset) — no
+  // session required. Reset-password is here rather than in isAuthPage because the
+  // recovery link establishes a session, and authenticated users must still reach it.
+  const isPublicPage = pathname === '/' ||
+    pathname.startsWith('/share') ||
+    pathname.startsWith('/privacy') ||
+    pathname.startsWith('/terms') ||
+    pathname.startsWith('/reset-password');
 
   // Redirect unauthenticated users to login (except auth pages and API routes)
   if (!user && !isAuthPage && !isPublicPage && !request.nextUrl.pathname.startsWith('/api')) {

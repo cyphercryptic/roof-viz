@@ -20,6 +20,7 @@ export const visualizeSchema = z.object({
   originalImagePath: z.string().min(1, 'Image path is required'),
   customerName: z.string().max(200).nullish(),
   customerAddress: z.string().max(500).nullish(),
+  enhance: z.boolean().optional(),
 });
 
 export const shareSchema = z.object({

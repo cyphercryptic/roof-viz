@@ -23,7 +23,7 @@ export default function NotFound() {
             Back home
           </Link>
           <Link
-            href="/dashboard"
+            href="/visualize"
             className="inline-flex items-center justify-center rounded-lg border border-brand-brown/20 bg-white px-6 py-2.5 text-sm font-semibold text-brand-brown transition hover:bg-brand-peach/20"
           >
             Go to dashboard

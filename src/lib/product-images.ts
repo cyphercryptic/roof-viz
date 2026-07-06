@@ -245,6 +245,18 @@ function getIkoImage(line: string, color: string): string | null {
 // ============================================================
 
 /**
+ * Extract the product line from a product name.
+ * Handles both "Timberline HDZ - Charcoal" (catalog seed format) and
+ * "GAF Timberline HDZ - Charcoal" (brand-prefixed custom products).
+ */
+export function extractProductLine(name: string, brand: string): string {
+  let rest = name.startsWith(brand) ? name.slice(brand.length).trim() : name;
+  const dashIdx = rest.indexOf(' - ');
+  if (dashIdx > 0) rest = rest.slice(0, dashIdx).trim();
+  return rest || name;
+}
+
+/**
  * Get the product swatch image URL for a given product.
  * Returns null if no image exists (falls back to gradient swatch in UI).
  */

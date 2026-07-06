@@ -13,6 +13,25 @@ function getPeriod(sub: Stripe.Subscription) {
   };
 }
 
+/** Map a Stripe subscription status onto the values allowed by the DB CHECK constraint. */
+function mapStatus(stripeStatus: Stripe.Subscription.Status): string {
+  switch (stripeStatus) {
+    case 'active':
+    case 'trialing':
+    case 'past_due':
+    case 'canceled':
+    case 'incomplete':
+      return stripeStatus;
+    case 'unpaid':
+    case 'paused':
+      return 'past_due';
+    case 'incomplete_expired':
+      return 'canceled';
+    default:
+      return 'active';
+  }
+}
+
 /** Extract subscription ID from an invoice (Stripe v21 structure) */
 function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   const subDetails = invoice.parent?.subscription_details;
@@ -115,7 +134,12 @@ export async function POST(request: NextRequest) {
       const customerId = subscription.customer as string;
       const period = getPeriod(subscription);
 
-      const status = subscription.cancel_at_period_end ? 'canceled' : 'active';
+      // Reflect Stripe's actual status. A subscription scheduled to cancel
+      // (cancel_at_period_end) stays active until it actually ends — we downgrade
+      // to free only on customer.subscription.deleted — so a paying customer keeps
+      // their features for the period they've paid for, and a past_due/unpaid state
+      // is no longer overwritten back to active.
+      const status = mapStatus(subscription.status);
 
       // Try to detect plan changes (e.g. upgrades/downgrades from Stripe portal)
       // by matching the active price ID against PLANS config.

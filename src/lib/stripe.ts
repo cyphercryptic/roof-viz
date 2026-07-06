@@ -1,8 +1,26 @@
 import Stripe from 'stripe';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25.dahlia',
-  typescript: true,
+// Lazily construct the Stripe client on first use rather than at module load.
+// usage.ts (imported by the core /api/visualize route) imports this file; constructing
+// eagerly would throw for every visualization if STRIPE_SECRET_KEY were unset, taking
+// down free/paid generation alike. The proxy keeps existing `stripe.foo` call sites intact.
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2026-03-25.dahlia',
+      typescript: true,
+    });
+  }
+  return _stripe;
+}
+
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop, receiver) {
+    const client = getStripe();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
 });
 
 /**

@@ -14,6 +14,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ProductSwatch } from '@/components/catalog/ProductSwatch';
 import { Sparkles, RotateCcw, Download, ArrowLeft, ChevronLeft, ChevronRight, Zap, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
+import { extractProductLine } from '@/lib/product-images';
+import { SUPPORT_EMAIL } from '@/lib/site';
 import type { Product } from '@/types';
 
 interface UsageInfo {
@@ -34,12 +36,7 @@ interface VisualizationResult {
 
 /** Extract the product line from the product name (e.g. "GAF Timberline HDZ - Charcoal" → "Timberline HDZ") */
 function extractLine(product: Product): string {
-  let rest = product.name.startsWith(product.brand)
-    ? product.name.slice(product.brand.length).trim()
-    : product.name;
-  const dashIdx = rest.indexOf(' - ');
-  if (dashIdx > 0) rest = rest.slice(0, dashIdx).trim();
-  return rest || product.name;
+  return extractProductLine(product.name, product.brand);
 }
 
 export default function VisualizePage() {
@@ -53,6 +50,7 @@ export default function VisualizePage() {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [enhance, setEnhance] = useState(false);
 
   // Image state
   const [preview, setPreview] = useState<string | null>(null);
@@ -159,6 +157,7 @@ export default function VisualizePage() {
           originalImagePath,
           customerName: customerName || null,
           customerAddress: customerAddress || null,
+          enhance,
         }),
       });
 
@@ -240,7 +239,7 @@ export default function VisualizePage() {
             </p>
           </div>
           <a
-            href="mailto:support@roofviz.com?subject=Interested%20in%20RoofViz"
+            href={`mailto:${SUPPORT_EMAIL}?subject=Interested%20in%20RoofViz`}
             className="px-4 py-2 bg-brand-orange text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity whitespace-nowrap"
           >
             Contact Sales
@@ -349,6 +348,23 @@ export default function VisualizePage() {
                   </div>
                 </div>
               )}
+
+              {/* Photo enhancement toggle */}
+              <label className="flex items-start gap-3 rounded-lg border border-brand-peach/40 bg-brand-cream/50 px-3 py-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={enhance}
+                  onChange={(e) => setEnhance(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-brand-orange"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-brand-brown">Enhance photo presentation</span>
+                  <span className="block text-xs text-brand-brown/50">
+                    Brightens lighting and cleans up the sky and lawn for a marketing-ready shot.
+                    Leave off for an exact like-for-like preview of the customer&apos;s home.
+                  </span>
+                </span>
+              </label>
 
               {/* Usage indicator */}
               {usage && (

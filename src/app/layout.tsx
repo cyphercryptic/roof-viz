@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 
 // Fraunces — variable display serif with optical sizing. Warm, tactile, editorial.
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
   },
   description:
     'Walk in with the after. Snap a home photo, pick a shingle, hand back a photorealistic roof — in under a minute.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://roofviz.com'),
+  metadataBase: new URL(getSiteUrl()),
   openGraph: {
     title: 'RoofViz — AI Roof Visualization for Sales Teams',
     description:

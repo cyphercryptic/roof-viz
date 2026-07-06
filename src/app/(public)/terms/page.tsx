@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Terms of Service - RoofViz',
@@ -148,7 +149,7 @@ export default function TermsOfServicePage() {
         <h2>12. Contact Information</h2>
         <p>
           If you have any questions about these Terms, please contact us at{' '}
-          <a href="mailto:support@roofviz.com">support@roofviz.com</a>.
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
       </article>
     </div>

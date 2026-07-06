@@ -58,13 +58,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Visualization not found' }, { status: 404 });
   }
 
-  // Check if a share link already exists for this visualization
+  // Reuse an existing share link only if it's active AND not yet expired — otherwise
+  // we'd hand back a token whose share page 404s, with no way to mint a fresh one.
   const { data: existing } = await supabase
     .from('shared_links')
     .select('token')
     .eq('visualization_id', visualization_id)
     .eq('is_active', true)
-    .single();
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
 
   if (existing) {
     return NextResponse.json({ token: existing.token });

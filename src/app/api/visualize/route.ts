@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { generateRoofVisualization } from '@/lib/openai';
+import * as Sentry from '@sentry/nextjs';
+import { generateRoofVisualization, ContentRefusedError } from '@/lib/gemini';
 import { buildRoofPrompt } from '@/lib/prompts';
+import { getProductImageUrl, extractProductLine } from '@/lib/product-images';
 import { checkUsage, recordUsage } from '@/lib/usage';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { visualizeSchema, parseBody } from '@/lib/validation';
 
-export const maxDuration = 60; // Allow up to 60 seconds for OpenAI processing
+export const maxDuration = 120; // Gemini generation takes 15-25s per attempt, with up to 3 attempts
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { productId, originalImagePath, customerName, customerAddress } = parsed.data;
+  const { productId, originalImagePath, customerName, customerAddress, enhance } = parsed.data;
 
   // Verify image path belongs to this tenant (prevent cross-tenant access)
   if (!originalImagePath.startsWith(profile.tenant_id + '/')) {
@@ -102,9 +104,32 @@ export async function POST(request: NextRequest) {
 
     const imageBuffer = Buffer.from(await imageData.arrayBuffer());
 
-    // Build the prompt and call OpenAI
-    const prompt = buildRoofPrompt(product);
-    const resultBuffer = await generateRoofVisualization(imageBuffer, prompt);
+    // Fetch the product swatch photo to give Gemini an exact color/texture reference.
+    // Non-fatal: fall back to text-only description if unavailable.
+    const swatchUrl =
+      product.swatch_url ||
+      getProductImageUrl(product.brand, extractProductLine(product.name, product.brand), product.color);
+    let swatchImage: Buffer | null = null;
+    if (swatchUrl) {
+      try {
+        const swatchRes = await fetch(swatchUrl, { signal: AbortSignal.timeout(5000) });
+        if (swatchRes.ok) {
+          swatchImage = Buffer.from(await swatchRes.arrayBuffer());
+        }
+      } catch {
+        // proceed without the swatch reference
+      }
+    }
+
+    const prompt = buildRoofPrompt(product, {
+      hasSwatchReference: !!swatchImage,
+      enhance: enhance ?? false,
+    });
+    const resultBuffer = await generateRoofVisualization({
+      houseImage: imageBuffer,
+      swatchImage,
+      prompt,
+    });
 
     // Upload the result image
     const resultPath = `${profile.tenant_id}/${visualization.id}/result.png`;
@@ -144,18 +169,27 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const internalMessage = error instanceof Error ? error.message : 'Unknown error';
+    const refused = error instanceof ContentRefusedError;
 
-    // Update visualization as failed
+    // Store the detailed reason internally for debugging.
     await adminSupabase
       .from('visualizations')
       .update({
         status: 'failed',
-        error_message: errorMessage,
+        error_message: internalMessage,
         processing_time_ms: processingTime,
       })
       .eq('id', visualization.id);
 
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    // A refusal is expected/user-actionable; anything else is a real fault worth alerting on.
+    if (!refused) Sentry.captureException(error);
+
+    // Never leak raw SDK/DB/API-key error text to the client.
+    const clientMessage = refused
+      ? 'The AI could not process this photo. Try a clearer, well-lit exterior shot of the house.'
+      : 'Visualization failed. Please try again in a moment.';
+
+    return NextResponse.json({ error: clientMessage }, { status: refused ? 422 : 500 });
   }
 }

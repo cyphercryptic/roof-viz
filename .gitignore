@@ -37,6 +37,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# doppler (per-developer local config)
+.doppler.yaml
+
+# supabase CLI temp
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

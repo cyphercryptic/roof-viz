@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SUPPORT_EMAIL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - RoofViz',
@@ -136,7 +137,7 @@ export default function PrivacyPolicyPage() {
         </ul>
         <p>
           To exercise any of these rights, contact us at{' '}
-          <a href="mailto:support@roofviz.com">support@roofviz.com</a>. We will respond to
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>. We will respond to
           your request within 30 days.
         </p>
 
@@ -166,7 +167,7 @@ export default function PrivacyPolicyPage() {
         <h2>11. Contact</h2>
         <p>
           If you have any questions or concerns about this Privacy Policy, please contact us
-          at <a href="mailto:support@roofviz.com">support@roofviz.com</a>.
+          at <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
         </p>
       </article>
     </div>

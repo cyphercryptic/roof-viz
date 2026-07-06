@@ -1,7 +1,21 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
 
-const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || 'support@roofviz.com';
+import { SUPPORT_EMAIL } from '@/lib/site';
+
+const ADMIN_ALERT_EMAIL = process.env.ADMIN_ALERT_EMAIL || SUPPORT_EMAIL;
+
+/** Start of the current calendar month in UTC (fallback billing period for tenants with no Stripe period). */
+function currentMonthStart(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+/** Start of next calendar month in UTC. */
+function nextMonthStart(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+}
 
 /**
  * Check if a tenant has remaining visualizations for their current billing period.
@@ -41,17 +55,14 @@ export async function checkUsage(
 
   if (!subscription) {
     // Free tier: allow 10 visualizations per month with no subscription
-    const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
-    const FREE_LIMIT = 10;
+    const periodStart = currentMonthStart();
+    const FREE_LIMIT = 5;
 
     const { count } = await supabase
       .from('usage_records')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('period_start', periodStart)
-      .lt('period_end', periodEnd);
+      .eq('period_start', periodStart);
 
     const used = count || 0;
     return {
@@ -85,23 +96,18 @@ export async function checkUsage(
 async function countCurrentUsage(
   supabase: SupabaseClient,
   tenantId: string,
-  subscription: { current_period_start: string | null; current_period_end: string | null }
+  subscription: { current_period_start: string | null }
 ) {
-  // Use billing period if available, otherwise use current calendar month
-  const now = new Date();
-  const periodStart = subscription.current_period_start
-    ? subscription.current_period_start
-    : new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const periodEnd = subscription.current_period_end
-    ? subscription.current_period_end
-    : new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  // Records are tagged with the exact period_start they belong to, so match on it
+  // directly. (The previous .lt('period_end', periodEnd) filter excluded every
+  // record, since records are written with period_end === the boundary.)
+  const periodStart = subscription.current_period_start || currentMonthStart();
 
   const { count } = await supabase
     .from('usage_records')
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
-    .gte('period_start', periodStart)
-    .lt('period_end', periodEnd);
+    .eq('period_start', periodStart);
 
   return count || 0;
 }
@@ -122,13 +128,11 @@ export async function recordUsage(
     .eq('tenant_id', tenantId)
     .single();
 
-  const now = new Date();
-  const periodStart = subscription?.current_period_start
-    || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const periodEnd = subscription?.current_period_end
-    || new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+  // period_start MUST match what checkUsage/countCurrentUsage compute for the count to work.
+  const periodStart = subscription?.current_period_start || currentMonthStart();
+  const periodEnd = subscription?.current_period_end || nextMonthStart();
 
-  await supabase
+  const { error: insertError } = await supabase
     .from('usage_records')
     .insert({
       tenant_id: tenantId,
@@ -136,6 +140,11 @@ export async function recordUsage(
       period_start: periodStart,
       period_end: periodEnd,
     });
+
+  if (insertError) {
+    // A completed (and Gemini-billed) visualization that isn't counted is a money leak — surface it.
+    console.error('Failed to record usage for visualization', visualizationId, insertError);
+  }
 
   // Check for high-usage alerts on Business Pro (or any high-tier plan)
   if (subscription?.plan === 'business_pro') {
@@ -150,14 +159,15 @@ export async function recordUsage(
         .from('usage_records')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
-        .gte('period_start', periodStart)
-        .lt('period_end', periodEnd);
+        .eq('period_start', periodStart);
 
       const used = currentCount || 0;
       const limit = subFull.visualization_limit;
 
-      // Send alert at 90% and 100%
-      if (used === Math.floor(limit * 0.9) || used === limit) {
+      // Fire once as usage crosses the 90% and 100% thresholds (a concurrent insert can
+      // skip the exact number, so trigger on the first record at or past each threshold).
+      const ninety = Math.floor(limit * 0.9);
+      if (used === ninety || used === limit) {
         await sendUsageAlert(supabase, tenantId, used, limit);
       }
     }
@@ -222,7 +232,7 @@ async function sendUsageAlert(
     // await fetch('https://api.resend.com/emails', {
     //   method: 'POST',
     //   headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ from: 'alerts@roofviz.com', to: ADMIN_ALERT_EMAIL, subject, text: body }),
+    //   body: JSON.stringify({ from: EMAIL_FROM, to: ADMIN_ALERT_EMAIL, subject, text: body }),
     // });
 
   } catch (err) {

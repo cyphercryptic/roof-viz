@@ -1,8 +1,9 @@
 import { Resend } from 'resend';
+import { EMAIL_FROM, getSiteUrl } from '@/lib/site';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'dummy_key_for_build');
 
-const FROM_ADDRESS = 'RoofViz <noreply@roofviz.com>';
+const FROM_ADDRESS = EMAIL_FROM;
 
 // ---------- Invite email ----------
 
@@ -128,7 +129,7 @@ export async function sendWelcomeEmail({
             </ol>
             <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
               <tr><td style="background-color:#e8632b;border-radius:8px;padding:14px 32px;text-align:center;">
-                <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'https://roofviz.com'}/visualize" style="color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;">Create Your First Visualization</a>
+                <a href="${getSiteUrl()}/visualize" style="color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;">Create Your First Visualization</a>
               </td></tr>
             </table>
             <p style="margin:0;font-size:13px;color:#9c8578;">

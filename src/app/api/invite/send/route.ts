@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { inviteSendSchema, parseBody } from '@/lib/validation';
 import { sendInviteEmail } from '@/lib/email';
+import { getSiteUrl } from '@/lib/site';
 import { PLANS } from '@/lib/stripe';
 
 export async function POST(request: NextRequest) {
@@ -105,11 +106,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  // Build invite URL and send email (fire-and-forget)
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://roofviz.com';
-  const inviteUrl = `${siteUrl}/invite/${token}`;
+  // Build invite URL and send email
+  const inviteUrl = `${getSiteUrl()}/invite/${token}`;
 
-  sendInviteEmail({
+  // Await the send so the serverless instance doesn't freeze before it completes.
+  // sendInviteEmail swallows its own errors, so a mail failure won't 500 the request.
+  await sendInviteEmail({
     to: email,
     inviterName: profile.full_name,
     companyName,
