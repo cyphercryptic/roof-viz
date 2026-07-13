@@ -60,6 +60,21 @@ export async function POST(request: NextRequest) {
 
   const adminSupabase = createAdminClient();
 
+  // Idempotency: Stripe retries deliveries, and replaying a subscription event
+  // re-runs DB writes with stale data. Claim the event id first; a unique-violation
+  // means it was already processed. Any other failure (e.g. migration 018 not yet
+  // applied) degrades to best-effort rather than dropping the event.
+  const { error: claimError } = await adminSupabase
+    .from('stripe_webhook_events')
+    .insert({ id: event.id });
+
+  if (claimError) {
+    if (claimError.code === '23505') {
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+    console.error('Webhook idempotency claim failed (processing anyway):', claimError.message);
+  }
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object;

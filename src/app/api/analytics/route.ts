@@ -3,6 +3,25 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 
+// PostgREST silently caps unranged selects at 1000 rows, which understates every
+// aggregate for busy tenants. Page through with .range() until a short page.
+// Builders are single-use, so the caller passes a factory.
+const PAGE_SIZE = 1000;
+async function fetchAllRows<T>(
+  buildQuery: () => PromiseLike<{ data: T[] | null; error: unknown }> & {
+    range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>;
+  }
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 export async function GET() {
   const supabase = await createClient();
 
@@ -69,12 +88,15 @@ export async function GET() {
     .gte('created_at', startOfMonth.toISOString());
 
   // Average processing time
-  const { data: processingData } = await adminSupabase
-    .from('visualizations')
-    .select('processing_time_ms')
-    .eq('tenant_id', tenantId)
-    .eq('status', 'completed')
-    .not('processing_time_ms', 'is', null);
+  const processingData = await fetchAllRows<{ processing_time_ms: number | null }>(() =>
+    adminSupabase
+      .from('visualizations')
+      .select('processing_time_ms')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'completed')
+      .not('processing_time_ms', 'is', null)
+      .order('created_at', { ascending: true })
+  );
 
   let avgProcessingTime = 0;
   if (processingData && processingData.length > 0) {
@@ -83,11 +105,14 @@ export async function GET() {
   }
 
   // Most popular products (top 5)
-  const { data: allVizProducts } = await adminSupabase
-    .from('visualizations')
-    .select('product_id, products(id, name, brand, color)')
-    .eq('tenant_id', tenantId)
-    .eq('status', 'completed');
+  const allVizProducts = await fetchAllRows<{ product_id: string; products: unknown }>(() =>
+    adminSupabase
+      .from('visualizations')
+      .select('product_id, products(id, name, brand, color)')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: true })
+  );
 
   const productCounts: Record<string, { name: string; brand: string; color: string; count: number }> = {};
   if (allVizProducts) {
@@ -106,11 +131,14 @@ export async function GET() {
     .slice(0, 5);
 
   // Visualizations per rep (join profiles for name)
-  const { data: allVizReps } = await adminSupabase
-    .from('visualizations')
-    .select('created_by, created_at, profiles(id, full_name)')
-    .eq('tenant_id', tenantId)
-    .eq('status', 'completed');
+  const allVizReps = await fetchAllRows<{ created_by: string; created_at: string; profiles: unknown }>(() =>
+    adminSupabase
+      .from('visualizations')
+      .select('created_by, created_at, profiles(id, full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: true })
+  );
 
   const repStats: Record<string, { name: string; count: number; lastActive: string }> = {};
   if (allVizReps) {
@@ -134,13 +162,15 @@ export async function GET() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-  const { data: dailyVizData } = await adminSupabase
-    .from('visualizations')
-    .select('created_at')
-    .eq('tenant_id', tenantId)
-    .eq('status', 'completed')
-    .gte('created_at', thirtyDaysAgo.toISOString())
-    .order('created_at', { ascending: true });
+  const dailyVizData = await fetchAllRows<{ created_at: string }>(() =>
+    adminSupabase
+      .from('visualizations')
+      .select('created_at')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'completed')
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .order('created_at', { ascending: true })
+  );
 
   // Build daily counts map
   const dailyCounts: Record<string, number> = {};

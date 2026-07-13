@@ -49,6 +49,21 @@ export async function POST(request: NextRequest) {
     .eq('tenant_id', profile.tenant_id)
     .single();
 
+  // A tenant with a live Stripe subscription must change plans through the
+  // billing portal — a second checkout would create a second subscription that
+  // double-charges and fights over the same subscriptions row.
+  const liveStatuses = ['active', 'trialing', 'past_due'];
+  if (
+    subscription?.stripe_subscription_id &&
+    liveStatuses.includes(subscription.status) &&
+    subscription.plan !== 'free'
+  ) {
+    return NextResponse.json(
+      { error: 'You already have an active subscription. Use "Manage Billing" to change your plan.' },
+      { status: 409 }
+    );
+  }
+
   let customerId = subscription?.stripe_customer_id;
 
   if (!customerId) {

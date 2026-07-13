@@ -75,11 +75,18 @@ export default function VisualizePage() {
   useEffect(() => {
     const photoPath = searchParams.get('photo');
     if (photoPath) {
-      const { data } = supabase.storage.from('house-photos').getPublicUrl(photoPath);
       setOriginalImagePath(photoPath);
-      setOriginalImageUrl(data.publicUrl);
-      setPreview(data.publicUrl);
       setStep('configure');
+      // Private bucket — sign the path (RLS scopes this to the user's tenant)
+      supabase.storage
+        .from('house-photos')
+        .createSignedUrl(photoPath, 60 * 60)
+        .then((res: { data: { signedUrl: string } | null }) => {
+          if (res.data) {
+            setOriginalImageUrl(res.data.signedUrl);
+            setPreview(res.data.signedUrl);
+          }
+        });
 
       const name = searchParams.get('customer');
       const address = searchParams.get('address');

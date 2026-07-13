@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { signupSchema, parseBody } from '@/lib/validation';
@@ -18,7 +19,52 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { userId, companyName, fullName } = parsed.data;
+  const { companyName, fullName } = parsed.data;
+
+  // Bind the new profile to a VERIFIED identity, not a caller-supplied id
+  // (which would let anyone attach an arbitrary auth user to their tenant).
+  // Preferred proof is the session cookie; with email confirmation enabled
+  // there is no session yet, so fall back to accepting the id only for a
+  // just-created, still-unconfirmed auth user that has no profile.
+  const authClient = await createClient();
+  const { data: { user: sessionUser } } = await authClient.auth.getUser();
+
+  let userId: string;
+  let userEmail: string | null;
+
+  if (sessionUser) {
+    userId = sessionUser.id;
+    userEmail = sessionUser.email ?? null;
+  } else {
+    const claimed = parsed.data.userId;
+    if (!claimed) {
+      return NextResponse.json(
+        { error: 'Your session could not be verified. Please sign in and try again.' },
+        { status: 401 }
+      );
+    }
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(claimed);
+    const ageMs = authUser ? Date.now() - new Date(authUser.created_at).getTime() : Infinity;
+    if (!authUser || authUser.email_confirmed_at || ageMs > 15 * 60 * 1000) {
+      return NextResponse.json(
+        { error: 'Your session could not be verified. Please sign in and try again.' },
+        { status: 401 }
+      );
+    }
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', authUser.id)
+      .maybeSingle();
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: 'This account is already set up. Please sign in.' },
+        { status: 409 }
+      );
+    }
+    userId = authUser.id;
+    userEmail = authUser.email ?? null;
+  }
 
   // Create slug from company name. Names like "&&&" normalize to empty, and distinct
   // names can collide, so fall back to a random slug and retry on collision instead of
@@ -76,10 +122,9 @@ export async function POST(request: NextRequest) {
 
   // Send welcome email. Await it so the serverless instance doesn't freeze before the
   // send completes; sendWelcomeEmail swallows its own errors, so this never blocks signup.
-  const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
-  if (authUser?.email) {
+  if (userEmail) {
     await sendWelcomeEmail({
-      to: authUser.email,
+      to: userEmail,
       fullName,
       companyName,
     });

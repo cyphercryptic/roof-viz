@@ -62,7 +62,20 @@ export default function TeamPage() {
         return;
       }
 
-      toast.success(`Invite sent to ${inviteEmail}`);
+      if (data.emailSent) {
+        toast.success(`Invite sent to ${inviteEmail}`);
+      } else if (data.inviteUrl) {
+        // Email isn't configured (or failed) — don't pretend it went out.
+        // Hand the inviter the link instead.
+        try {
+          await navigator.clipboard.writeText(data.inviteUrl);
+          toast.success('Invite created — link copied to clipboard. Send it to them directly (email is not set up).', { duration: 8000 });
+        } catch {
+          toast.warning('Invite created, but the email could not be sent. Use the copy-link button below to share it.', { duration: 8000 });
+        }
+      } else {
+        toast.success(`Invite created for ${inviteEmail}`);
+      }
       setInviteEmail('');
       loadTeam();
     } catch {

@@ -3,7 +3,9 @@ import { z } from 'zod';
 // --- Schemas ---
 
 export const signupSchema = z.object({
-  userId: z.string().uuid(),
+  // Identity comes from the session cookie server-side; a userId in the body is
+  // ignored (kept optional so older clients that still send it don't 400).
+  userId: z.string().uuid().optional(),
   companyName: z
     .string()
     .min(1, 'Company name is required')
@@ -37,7 +39,7 @@ export const inviteAcceptSchema = z.object({
     .min(32)
     .max(128)
     .regex(/^[a-f0-9]+$/, 'Invalid token format'),
-  userId: z.string().uuid(),
+  userId: z.string().uuid().optional(),
   fullName: z
     .string()
     .min(1, 'Full name is required')

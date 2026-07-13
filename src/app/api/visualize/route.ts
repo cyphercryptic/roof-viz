@@ -157,14 +157,14 @@ export async function POST(request: NextRequest) {
     // Record usage
     await recordUsage(adminSupabase, profile.tenant_id, visualization.id);
 
-    // Get result URL
-    const { data: urlData } = adminSupabase.storage
+    // The bucket is private — hand back a signed URL for the result view.
+    const { data: urlData } = await adminSupabase.storage
       .from('visualizations')
-      .getPublicUrl(resultPath);
+      .createSignedUrl(resultPath, 60 * 60 * 4);
 
     return NextResponse.json({
       id: visualization.id,
-      resultUrl: urlData.publicUrl,
+      resultUrl: urlData?.signedUrl,
       processingTimeMs: processingTime,
     });
   } catch (error) {

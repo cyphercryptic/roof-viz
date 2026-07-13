@@ -110,8 +110,9 @@ export async function POST(request: NextRequest) {
   const inviteUrl = `${getSiteUrl()}/invite/${token}`;
 
   // Await the send so the serverless instance doesn't freeze before it completes.
-  // sendInviteEmail swallows its own errors, so a mail failure won't 500 the request.
-  await sendInviteEmail({
+  // sendInviteEmail swallows its own errors, so a mail failure won't 500 the request —
+  // it reports emailSent: false and the UI falls back to a copyable link.
+  const emailSent = await sendInviteEmail({
     to: email,
     inviterName: profile.full_name,
     companyName,
@@ -119,5 +120,5 @@ export async function POST(request: NextRequest) {
     inviteUrl,
   });
 
-  return NextResponse.json({ invite });
+  return NextResponse.json({ invite, inviteUrl, emailSent });
 }

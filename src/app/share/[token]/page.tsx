@@ -2,6 +2,10 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound } from 'next/navigation';
 import { SharePageClient } from './SharePageClient';
 
+// Rendered per request: the view counter increments and the signed image URLs
+// below must be freshly minted so expiry/revocation of the link actually bites.
+export const dynamic = 'force-dynamic';
+
 interface SharePageProps {
   params: Promise<{ token: string }>;
 }
@@ -61,28 +65,35 @@ export default async function SharePage({ params }: SharePageProps) {
     .eq('id', link.id)
     .then();
 
-  // Build public URLs for images
-  const { data: beforeData } = supabase.storage
-    .from('house-photos')
-    .getPublicUrl(viz.original_image_path);
-  const { data: afterData } = supabase.storage
-    .from('visualizations')
-    .getPublicUrl(viz.result_image_path);
+  // Buckets are private — mint short-lived signed URLs with the service role.
+  // These are the ONLY way a homeowner sees the images, so expiring/revoking
+  // the share link genuinely cuts off access.
+  const [{ data: beforeData }, { data: afterData }] = await Promise.all([
+    supabase.storage.from('house-photos').createSignedUrl(viz.original_image_path, 60 * 60),
+    supabase.storage.from('visualizations').createSignedUrl(viz.result_image_path, 60 * 60),
+  ]);
 
+  if (!beforeData || !afterData) {
+    notFound();
+  }
+
+  // White-label customization (colors, logo, hiding attribution) is a Business
+  // Pro feature — enforce the plan here, not just in the settings UI, so writing
+  // the tenant columns directly can't unlock it.
   return (
     <SharePageClient
-      beforeUrl={beforeData.publicUrl}
-      afterUrl={afterData.publicUrl}
+      beforeUrl={beforeData.signedUrl}
+      afterUrl={afterData.signedUrl}
       productName={viz.products?.name || 'Roofing Product'}
       productBrand={viz.products?.brand || ''}
       productColor={viz.products?.color || ''}
       customerName={viz.customer_name}
       companyName={tenant?.name || 'RoofViz'}
       whiteLabel={isWhiteLabel}
-      primaryColor={tenant?.brand_primary_color || '#E07A2F'}
-      secondaryColor={tenant?.brand_secondary_color || '#3D2B1F'}
-      hidePoweredBy={tenant?.hide_powered_by ?? false}
-      logoUrl={tenant?.logo_url || null}
+      primaryColor={isWhiteLabel ? tenant?.brand_primary_color || '#E07A2F' : '#E07A2F'}
+      secondaryColor={isWhiteLabel ? tenant?.brand_secondary_color || '#3D2B1F' : '#3D2B1F'}
+      hidePoweredBy={isWhiteLabel ? tenant?.hide_powered_by ?? false : false}
+      logoUrl={isWhiteLabel ? tenant?.logo_url || null : null}
     />
   );
 }

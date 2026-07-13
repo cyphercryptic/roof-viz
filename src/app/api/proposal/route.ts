@@ -7,6 +7,19 @@ import { proposalSchema, parseBody } from '@/lib/validation';
 
 const PRO_PLANS = ['pro', 'business', 'business_pro'];
 
+// The standard Helvetica fonts only encode WinAnsi (≈Latin-1). A customer named
+// "Łukasz" or an address with CJK characters made drawText throw and the whole
+// proposal 500. Fold newlines, strip combining accents, and replace anything
+// still unencodable instead of crashing.
+function pdfSafe(text: string): string {
+  return text
+    .replace(/\s+/g, ' ')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E\xA1-\xFF]/g, '?')
+    .trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Auth check
@@ -148,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (tenant?.name) {
-      page.drawText(tenant.name, {
+      page.drawText(pdfSafe(tenant.name), {
         x: margin,
         y: yPos - 20,
         size: 18,
@@ -194,7 +207,7 @@ export async function POST(request: NextRequest) {
     yPos -= 16;
 
     if (visualization.customer_name) {
-      page.drawText(`Customer: ${visualization.customer_name}`, {
+      page.drawText(pdfSafe(`Customer: ${visualization.customer_name}`), {
         x: margin,
         y: yPos,
         size: 10,
@@ -205,7 +218,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (visualization.customer_address) {
-      page.drawText(`Address: ${visualization.customer_address}`, {
+      page.drawText(pdfSafe(`Address: ${visualization.customer_address}`), {
         x: margin,
         y: yPos,
         size: 10,
@@ -285,12 +298,12 @@ export async function POST(request: NextRequest) {
       yPos -= 22;
 
       const details: [string, string][] = [
-        ['Name', product.name],
-        ['Brand', product.brand],
-        ['Color', product.color],
+        ['Name', pdfSafe(product.name)],
+        ['Brand', pdfSafe(product.brand)],
+        ['Color', pdfSafe(product.color)],
       ];
       if (product.style) {
-        details.push(['Style', product.style]);
+        details.push(['Style', pdfSafe(product.style)]);
       }
 
       for (const [label, value] of details) {
@@ -325,7 +338,7 @@ export async function POST(request: NextRequest) {
 
         // Wrap description text at ~80 chars per line
         const maxLineWidth = width - margin * 2;
-        const words = product.description.split(' ');
+        const words = pdfSafe(product.description).split(' ');
         let line = '';
         for (const word of words) {
           const testLine = line ? `${line} ${word}` : word;

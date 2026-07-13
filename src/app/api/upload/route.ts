@@ -100,14 +100,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    // The bucket is private — return a signed URL for the client-side preview.
+    // Created with the user's own client so tenant RLS still applies.
+    const { data: urlData, error: signError } = await supabase.storage
       .from('house-photos')
-      .getPublicUrl(path);
+      .createSignedUrl(path, 60 * 60);
+
+    if (signError || !urlData) {
+      console.error('Signed URL error:', signError);
+      return NextResponse.json({ error: 'Failed to prepare image preview' }, { status: 500 });
+    }
 
     return NextResponse.json({
       path,
-      url: urlData.publicUrl,
+      url: urlData.signedUrl,
     });
   } catch (err) {
     console.error('Upload error:', err);

@@ -5,6 +5,13 @@ const resend = new Resend(process.env.RESEND_API_KEY || 'dummy_key_for_build');
 
 const FROM_ADDRESS = EMAIL_FROM;
 
+/** Whether outbound email can actually be delivered. Send functions no-op
+ * (and return false) when unconfigured so callers can offer a manual fallback
+ * instead of implying an email went out. */
+export function isEmailConfigured(): boolean {
+  return !!process.env.RESEND_API_KEY;
+}
+
 // ---------- Invite email ----------
 
 interface SendInviteEmailParams {
@@ -21,11 +28,12 @@ export async function sendInviteEmail({
   companyName,
   role,
   inviteUrl,
-}: SendInviteEmailParams): Promise<void> {
+}: SendInviteEmailParams): Promise<boolean> {
+  if (!isEmailConfigured()) return false;
   try {
     const roleLabel = role === 'admin' ? 'an admin' : 'a sales rep';
 
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to,
       subject: `${inviterName} invited you to join ${companyName} on RoofViz`,
@@ -75,8 +83,14 @@ export async function sendInviteEmail({
 </body>
 </html>`,
     });
+    if (error) {
+      console.error('Failed to send invite email:', error);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error('Failed to send invite email:', err);
+    return false;
   }
 }
 
@@ -92,11 +106,12 @@ export async function sendWelcomeEmail({
   to,
   fullName,
   companyName,
-}: SendWelcomeEmailParams): Promise<void> {
+}: SendWelcomeEmailParams): Promise<boolean> {
+  if (!isEmailConfigured()) return false;
   try {
     const firstName = fullName.split(' ')[0] || fullName;
 
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to,
       subject: `Welcome to RoofViz, ${firstName}!`,
@@ -151,7 +166,13 @@ export async function sendWelcomeEmail({
 </body>
 </html>`,
     });
+    if (error) {
+      console.error('Failed to send welcome email:', error);
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error('Failed to send welcome email:', err);
+    return false;
   }
 }

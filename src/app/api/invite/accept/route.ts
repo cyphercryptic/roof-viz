@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { inviteAcceptSchema, parseBody } from '@/lib/validation';
@@ -16,7 +17,36 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { token, userId, fullName } = parsed.data;
+  const { token, fullName } = parsed.data;
+
+  // Bind the new profile to a VERIFIED identity, not a bare caller-supplied id.
+  // Session cookie is the preferred proof; with email confirmation enabled the
+  // invite page has no session yet, so accept the id only for a just-created,
+  // still-unconfirmed auth user (the invite token itself gates tenant access).
+  const authClient = await createClient();
+  const { data: { user: sessionUser } } = await authClient.auth.getUser();
+
+  let userId: string;
+  if (sessionUser) {
+    userId = sessionUser.id;
+  } else {
+    const claimed = parsed.data.userId;
+    if (!claimed) {
+      return NextResponse.json(
+        { error: 'Your session could not be verified. Please sign in and try again.' },
+        { status: 401 }
+      );
+    }
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(claimed);
+    const ageMs = authUser ? Date.now() - new Date(authUser.created_at).getTime() : Infinity;
+    if (!authUser || authUser.email_confirmed_at || ageMs > 15 * 60 * 1000) {
+      return NextResponse.json(
+        { error: 'Your session could not be verified. Please sign in and try again.' },
+        { status: 401 }
+      );
+    }
+    userId = authUser.id;
+  }
 
   // Fetch and validate the invite
   const { data: invite, error: inviteError } = await supabase

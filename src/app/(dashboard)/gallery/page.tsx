@@ -37,6 +37,7 @@ type View = 'projects' | 'detail';
 
 export default function GalleryPage() {
   const [visualizations, setVisualizations] = useState<VisualizationWithProduct[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [plan, setPlan] = useState<string>('');
@@ -89,9 +90,35 @@ export default function GalleryPage() {
 
     const { data, error } = await query;
     if (!error && data) {
-      setVisualizations(data as VisualizationWithProduct[]);
+      const vizs = data as VisualizationWithProduct[];
+      setVisualizations(vizs);
+      await signImageUrls(vizs);
     }
     setLoading(false);
+  }
+
+  // Buckets are private — batch-create signed URLs for every image we might show.
+  // RLS scopes signing to the user's tenant, mirroring the query above.
+  async function signImageUrls(vizs: VisualizationWithProduct[]) {
+    const expiresIn = 60 * 60 * 4;
+    const byBucket: Record<string, string[]> = {
+      'house-photos': [...new Set(vizs.map((v) => v.original_image_path).filter(Boolean))],
+      visualizations: [...new Set(vizs.map((v) => v.result_image_path).filter(Boolean))] as string[],
+    };
+
+    const urls: Record<string, string> = {};
+    await Promise.all(
+      Object.entries(byBucket).map(async ([bucket, paths]) => {
+        if (paths.length === 0) return;
+        const { data } = await supabase.storage.from(bucket).createSignedUrls(paths, expiresIn);
+        for (const entry of data || []) {
+          if (entry.signedUrl && entry.path) {
+            urls[`${bucket}/${entry.path}`] = entry.signedUrl;
+          }
+        }
+      })
+    );
+    setSignedUrls(urls);
   }
 
   // Group visualizations into projects.
@@ -237,8 +264,7 @@ export default function GalleryPage() {
   }
 
   function getImageUrl(bucket: string, path: string) {
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-    return data.publicUrl;
+    return signedUrls[`${bucket}/${path}`] || '';
   }
 
   if (loading) {
