@@ -2,114 +2,40 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { House, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Image, FolderOpen, Package, Settings, Users, CreditCard, BarChart3, Palette } from 'lucide-react';
+import { workspaceNavigation, managementNavigation, isNavigationActive } from './navigation';
 import type { Profile } from '@/types';
 
-interface SidebarProps {
-  profile: Profile | null;
-}
-
-const navItems = [
-  { href: '/visualize', label: 'Visualize', icon: Image },
-  { href: '/gallery', label: 'Gallery', icon: FolderOpen },
-];
-
-const adminItems = [
-  { href: '/catalog', label: 'Product Catalog', icon: Package },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/settings/team', label: 'Team', icon: Users },
-  { href: '/settings/billing', label: 'Billing', icon: CreditCard },
-  { href: '/settings/branding', label: 'Branding', icon: Palette },
-  { href: '/settings', label: 'Settings', icon: Settings },
-];
-
-export function Sidebar({ profile }: SidebarProps) {
+export function Sidebar({ profile }: { profile: Profile | null }) {
   const pathname = usePathname();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
-  const isDemo = profile?.role === 'demo';
+  const initials = profile?.full_name.split(' ').map((name) => name[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <aside className="hidden md:flex md:w-64 md:flex-col bg-brand-brown">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 px-6 border-b border-white/10">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-orange">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-        </div>
-        <div>
-          <span className="text-lg font-bold text-white tracking-tight">RoofViz</span>
-          <span className="text-[10px] block text-brand-peach -mt-1 uppercase tracking-widest">Pro</span>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-brand-peach/50">
-          Main
-        </p>
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-              pathname.startsWith(item.href)
-                ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20'
-                : 'text-white/70 hover:bg-white/8 hover:text-white'
-            )}
-          >
-            <item.icon className="h-[18px] w-[18px]" />
-            {item.label}
-          </Link>
-        ))}
-
-        {isAdmin && (
-          <>
-            <div className="my-5 border-t border-white/10" />
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-brand-peach/50">
-              Admin
-            </p>
-            {adminItems.map((item) => {
-              const isActive = item.href === '/settings'
-                ? pathname === '/settings'
-                : pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-                    isActive
-                      ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20'
-                      : 'text-white/70 hover:bg-white/8 hover:text-white'
-                  )}
-                >
-                  <item.icon className="h-[18px] w-[18px]" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </>
-        )}
+    <aside className="hidden w-64 shrink-0 flex-col bg-brand-brown text-white md:flex">
+      <Link href="/" aria-label="ExteriorViz home" className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
+        <House className="h-7 w-7 text-brand-peach" aria-hidden="true" />
+        <span className="text-xl font-semibold tracking-tight">ExteriorViz</span>
+      </Link>
+      <div className="px-6 py-5 text-sm leading-6 text-white/65">Roofing, windows & doors.<br />One connected workspace.</div>
+      <nav aria-label="Workspace" className="flex-1 space-y-1 px-3 pb-6">
+        {workspaceNavigation.map((item) => {
+          const active = isNavigationActive(pathname, item.href);
+          return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={cn('flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors', active ? 'bg-white text-brand-brown' : 'text-white/75 hover:bg-white/10 hover:text-white')}><item.icon className="h-5 w-5" aria-hidden="true" />{item.label}</Link>;
+        })}
+        {isAdmin && <>
+          <p className="px-3 pb-2 pt-8 text-sm text-white/50">Manage your company</p>
+          {managementNavigation.map((item) => {
+            const active = isNavigationActive(pathname, item.href);
+            return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={cn('flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors', active ? 'bg-white text-brand-brown' : 'text-white/75 hover:bg-white/10 hover:text-white')}><item.icon className="h-5 w-5" aria-hidden="true" />{item.label}</Link>;
+          })}
+        </>}
       </nav>
-
-      {/* Bottom user info */}
-      {profile && (
-        <div className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-orange/20 text-brand-orange text-xs font-bold">
-              {profile.full_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white truncate">{profile.full_name}</p>
-              <p className="text-[11px] text-white/40 capitalize">{profile.role === 'demo' ? 'Demo User' : profile.role === 'owner' ? 'Owner' : profile.role}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="space-y-4 border-t border-white/10 p-5">
+        <Link href="/#examples" className="flex items-center justify-between text-sm text-white/70 hover:text-white">Explore sample previews<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link>
+        {profile && <div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-semibold">{initials}</div><div className="min-w-0"><p className="truncate text-sm font-medium">{profile.full_name}</p><p className="text-xs capitalize text-white/60">{profile.role === 'demo' ? 'Demo workspace' : profile.role === 'rep' ? 'Sales representative' : profile.role}</p></div></div>}
+      </div>
     </aside>
   );
 }

@@ -1,93 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { inviteAcceptSchema, parseBody } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
-  const supabase = createAdminClient();
-
-  // Rate limit by IP (unauthenticated)
-  const ip = getClientIp(request);
-  const rateCheck = await checkRateLimit(supabase, ip, '/api/invite/accept', RATE_LIMITS.auth);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
-
-  const body = await request.json();
-  const parsed = parseBody(inviteAcceptSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
-  const { token, fullName } = parsed.data;
-
-  // Bind the new profile to a VERIFIED identity, not a bare caller-supplied id.
-  // Session cookie is the preferred proof; with email confirmation enabled the
-  // invite page has no session yet, so accept the id only for a just-created,
-  // still-unconfirmed auth user (the invite token itself gates tenant access).
-  const authClient = await createClient();
-  const { data: { user: sessionUser } } = await authClient.auth.getUser();
-
-  let userId: string;
-  if (sessionUser) {
-    userId = sessionUser.id;
-  } else {
-    const claimed = parsed.data.userId;
-    if (!claimed) {
-      return NextResponse.json(
-        { error: 'Your session could not be verified. Please sign in and try again.' },
-        { status: 401 }
-      );
+  try {
+    const authClient = await createClient();
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user || !user.email || !user.email_confirmed_at) {
+      return NextResponse.json({ error: 'Confirm your email and sign in with the invited email address to join this team.' }, { status: 401 });
     }
-    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(claimed);
-    const ageMs = authUser ? Date.now() - new Date(authUser.created_at).getTime() : Infinity;
-    if (!authUser || authUser.email_confirmed_at || ageMs > 15 * 60 * 1000) {
-      return NextResponse.json(
-        { error: 'Your session could not be verified. Please sign in and try again.' },
-        { status: 401 }
-      );
-    }
-    userId = authUser.id;
-  }
 
-  // Fetch and validate the invite
-  const { data: invite, error: inviteError } = await supabase
-    .from('invites')
-    .select('*')
-    .eq('token', token)
-    .is('accepted_at', null)
-    .single();
+    const admin = createAdminClient();
+    const rateCheck = await checkRateLimit(admin, user.id, '/api/invite/accept', RATE_LIMITS.auth);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+    const parsed = parseBody(inviteAcceptSchema, await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  if (inviteError || !invite) {
-    return NextResponse.json({ error: 'Invalid or expired invite' }, { status: 404 });
-  }
+    if (!parsed.data.fullName.trim()) return NextResponse.json({ error: 'Full name is required.' }, { status: 400 });
 
-  // Check invite expiration
-  if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
-    return NextResponse.json({ error: 'This invite has expired' }, { status: 410 });
-  }
-
-  // Whitelist allowed roles
-  const allowedRoles = ['rep', 'admin', 'demo'];
-  const role = allowedRoles.includes(invite.role) ? invite.role : 'rep';
-
-  // Create the profile
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .insert({
-      id: userId,
-      tenant_id: invite.tenant_id,
-      full_name: fullName,
-      role,
+    // The database transaction validates the confirmed auth email, current plan,
+    // remaining seats and token before inserting the profile and consuming the
+    // invitation together. Caller-supplied userId is never an identity credential.
+    const { data, error } = await admin.rpc('accept_team_invite', {
+      p_user_id: user.id,
+      p_token: parsed.data.token,
+      p_full_name: parsed.data.fullName.trim(),
     });
-
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+    if (error || !data?.success) {
+      if (error?.code === 'P0002') return NextResponse.json({ error: 'This invitation is invalid, expired, or already used. Ask your company admin for a new link.' }, { status: 404 });
+      if (error?.code === '23505') return NextResponse.json({ error: 'Your account already belongs to a company. Sign in with the invited account or contact your admin.' }, { status: 409 });
+      if (error?.code === 'P0001') return NextResponse.json({ error: 'This company has no available team seats. Ask its admin to update the plan.' }, { status: 403 });
+      if (error?.code === '42501') return NextResponse.json({ error: 'Use the invited email address to join. The company must also have an active plan.' }, { status: 403 });
+      return NextResponse.json({ error: 'Unable to join the team. Please try again.' }, { status: 503 });
+    }
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'Unable to verify this invitation. Please try again.' }, { status: 503 });
   }
-
-  // Mark invite as accepted
-  await supabase
-    .from('invites')
-    .update({ accepted_at: new Date().toISOString() })
-    .eq('id', invite.id);
-
-  return NextResponse.json({ success: true });
 }

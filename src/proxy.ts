@@ -2,7 +2,10 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function proxy(request: NextRequest) {
-  const supabaseResponse = NextResponse.next({ request });
+  // Static marketing and discovery resources do not need a database round trip.
+  const publicPaths = ['/', '/privacy', '/terms', '/robots.txt', '/sitemap.xml', '/opengraph-image', '/twitter-image', '/auth/callback'];
+  if (publicPaths.includes(request.nextUrl.pathname)) return NextResponse.next();
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,10 +16,10 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-            supabaseResponse.cookies.set(name, value, options);
-          });
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
+          supabaseResponse.headers.set('Cache-Control', 'private, no-store');
         },
       },
     }
@@ -35,20 +38,28 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/share') ||
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/terms') ||
-    pathname.startsWith('/reset-password');
+    pathname.startsWith('/reset-password') ||
+    pathname === '/auth/callback';
+
+  function redirectWithSession(url: URL) {
+    const response = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
+  }
 
   // Redirect unauthenticated users to login (except auth pages and API routes)
   if (!user && !isAuthPage && !isPublicPage && !request.nextUrl.pathname.startsWith('/api')) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    return redirectWithSession(url);
   }
 
   // Redirect authenticated users away from auth pages
   if (user && isAuthPage && !request.nextUrl.pathname.startsWith('/invite')) {
     const url = request.nextUrl.clone();
     url.pathname = '/visualize';
-    return NextResponse.redirect(url);
+    return redirectWithSession(url);
   }
 
   // Restrict demo users to visualize page only
@@ -68,7 +79,7 @@ export async function proxy(request: NextRequest) {
       if (profile?.role === 'demo') {
         const url = request.nextUrl.clone();
         url.pathname = '/visualize';
-        return NextResponse.redirect(url);
+        return redirectWithSession(url);
       }
     }
   }

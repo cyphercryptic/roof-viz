@@ -21,9 +21,11 @@ export default function BrandingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
 
-  const [primaryColor, setPrimaryColor] = useState('#E07A2F');
-  const [secondaryColor, setSecondaryColor] = useState('#3D2B1F');
+  const [primaryColor, setPrimaryColor] = useState('#1F587A');
+  const [secondaryColor, setSecondaryColor] = useState('#173047');
   const [hidePoweredBy, setHidePoweredBy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
@@ -32,38 +34,34 @@ export default function BrandingPage() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
 
   useEffect(() => {
-    if (profile?.tenant_id) loadData();
-  }, [profile?.tenant_id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadData() {
-    const [tenantRes, subRes] = await Promise.all([
-      supabase
-        .from('tenants')
-        .select('*')
-        .eq('id', profile!.tenant_id)
-        .single(),
-      supabase
-        .from('subscriptions')
-        .select('plan')
-        .eq('tenant_id', profile!.tenant_id)
-        .single(),
-    ]);
-
-    if (tenantRes.data) {
-      const t = tenantRes.data as Tenant;
-      setTenant(t);
-      setPrimaryColor(t.brand_primary_color || '#E07A2F');
-      setSecondaryColor(t.brand_secondary_color || '#3D2B1F');
-      setHidePoweredBy(t.hide_powered_by ?? false);
-      setLogoUrl(t.logo_url);
+    const tenantId = profile?.tenant_id;
+    if (!tenantId) return;
+    let active = true;
+    async function loadData() {
+      try {
+        const [tenantRes, subRes] = await Promise.all([
+          supabase.from('tenants').select('*').eq('id', tenantId!).single(),
+          supabase.from('subscriptions').select('plan, status').eq('tenant_id', tenantId!).maybeSingle(),
+        ]);
+        if (tenantRes.error || subRes.error || !tenantRes.data) throw new Error('Unable to load branding');
+        if (!active) return;
+        const tenantData = tenantRes.data as Tenant;
+        setTenant(tenantData);
+        setPrimaryColor(tenantData.brand_primary_color || '#1F587A');
+        setSecondaryColor(tenantData.brand_secondary_color || '#173047');
+        setHidePoweredBy(tenantData.hide_powered_by ?? false);
+        setLogoUrl(tenantData.logo_url);
+        setPlan(subRes.data && ['active', 'trialing'].includes(subRes.data.status) ? subRes.data.plan : null);
+        setLoadError(false);
+      } catch {
+        if (active) setLoadError(true);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-
-    if (subRes.data) {
-      setPlan(subRes.data.plan);
-    }
-
-    setLoading(false);
-  }
+    void loadData();
+    return () => { active = false; };
+  }, [profile?.tenant_id, supabase, reload]);
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -134,9 +132,13 @@ export default function BrandingPage() {
     );
   }
 
+  if (loadError) {
+    return <div role="alert" className="mx-auto max-w-xl space-y-3 rounded-xl border border-border bg-white p-6"><h1 className="text-xl font-semibold">Branding settings are unavailable</h1><p>We could not load your company and plan details. Please try again.</p><Button variant="outline" onClick={() => { setLoading(true); setReload((value) => value + 1); }}>Try again</Button></div>;
+  }
+
   if (!isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-brand-brown/50">
+      <div className="flex flex-col items-center justify-center py-20 text-brand-brown-soft">
         <Shield className="h-12 w-12 mb-4" />
         <p>Only admins can access branding settings.</p>
       </div>
@@ -148,16 +150,16 @@ export default function BrandingPage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold">White-Label Branding</h1>
-          <p className="text-brand-brown/50">Customize your customer-facing pages</p>
+          <p className="text-brand-brown-soft">Customize your customer-facing pages</p>
         </div>
 
         <Card>
           <CardContent className="flex flex-col items-center py-12 text-center">
             <Paintbrush className="h-12 w-12 text-brand-brown/30 mb-4" />
             <h2 className="text-lg font-semibold mb-2">Business Pro Feature</h2>
-            <p className="text-brand-brown/50 mb-6 max-w-md">
+            <p className="text-brand-brown-soft mb-6 max-w-md">
               White-label branding is available on the Business Pro plan. Customize colors,
-              upload your logo, and remove RoofViz branding from shared pages.
+              upload your logo, and remove ExteriorViz branding from shared pages.
             </p>
             <Link href="/settings/billing">
               <Button>
@@ -175,7 +177,7 @@ export default function BrandingPage() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">White-Label Branding</h1>
-        <p className="text-brand-brown/50">Customize your customer-facing pages</p>
+        <p className="text-brand-brown-soft">Customize your customer-facing pages</p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -224,7 +226,7 @@ export default function BrandingPage() {
               className="hidden"
               onChange={handleLogoUpload}
             />
-            <p className="text-xs text-brand-brown/40">
+            <p className="text-xs text-brand-brown-soft">
               Recommended: Square image, at least 128x128px. PNG or SVG preferred.
             </p>
           </CardContent>
@@ -285,9 +287,9 @@ export default function BrandingPage() {
           <CardContent className="py-4">
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <p className="font-medium">Hide &quot;Powered by RoofViz&quot;</p>
-                <p className="text-sm text-brand-brown/50">
-                  Remove the RoofViz attribution from shared visualization pages
+                <p className="font-medium">Hide &quot;Powered by ExteriorViz&quot;</p>
+                <p className="text-sm text-brand-brown-soft">
+                  Remove the ExteriorViz attribution from shared visualization pages
                 </p>
               </div>
               <input
@@ -332,11 +334,11 @@ export default function BrandingPage() {
                   </span>
                 </div>
                 {!hidePoweredBy && (
-                  <span className="text-xs text-brand-brown/40">Powered by RoofViz</span>
+                  <span className="text-xs text-brand-brown-soft">Powered by ExteriorViz</span>
                 )}
               </div>
               {/* Simulated content area */}
-              <div className="bg-brand-cream/50 p-6 text-center text-sm text-brand-brown/40">
+              <div className="bg-brand-cream/50 p-6 text-center text-sm text-brand-brown-soft">
                 Visualization content area
               </div>
             </div>

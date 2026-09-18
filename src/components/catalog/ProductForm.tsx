@@ -1,36 +1,54 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ROOF_STYLES, COMMON_BRANDS } from '@/lib/constants';
+import { ROOF_STYLES, COMMON_BRANDS, WINDOW_TYPES, SLIDING_DOOR_CONFIGS, ENTRY_DOOR_STYLES, FRAME_MATERIALS } from '@/lib/constants';
 import { Upload, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Product } from '@/types';
+import type { Product, ProductCategory } from '@/types';
+import { CATEGORY_LABELS } from '@/types';
+
+const CATEGORY_OPTIONS: ProductCategory[] = ['roofing', 'window', 'sliding_glass_door', 'entry_door'];
+
+const GLASS_TYPES = ['clear', 'low-e', 'tinted', 'frosted', 'decorative', 'tempered', 'impact-resistant'] as const;
+const GRID_PATTERNS = ['none', 'colonial', 'prairie', 'diamond', 'custom'] as const;
 
 interface ProductFormProps {
   product?: Product;
+  defaultCategory?: ProductCategory;
   onSubmit: (data: {
     name: string;
     brand: string;
     color: string;
-    style: string;
+    category: ProductCategory;
+    style: string | null;
+    line: string | null;
+    material: string | null;
+    attributes: Record<string, unknown>;
     description: string;
     swatch_url: string | null;
   }) => Promise<void>;
   onCancel: () => void;
 }
 
-export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
+export function ProductForm({ product, defaultCategory = 'roofing', onSubmit, onCancel }: ProductFormProps) {
   const [name, setName] = useState(product?.name || '');
   const [brand, setBrand] = useState(product?.brand || '');
   const [customBrand, setCustomBrand] = useState('');
   const [color, setColor] = useState(product?.color || '');
+  const [category, setCategory] = useState<ProductCategory>(product?.category || defaultCategory);
   const [style, setStyle] = useState(product?.style || '');
+  const [line, setLine] = useState(product?.line || '');
+  const [material, setMaterial] = useState(product?.material || '');
+  const [attributes, setAttributes] = useState<Record<string, string | number | boolean>>(
+    (product?.attributes as Record<string, string | number | boolean>) || {}
+  );
   const [description, setDescription] = useState(product?.description || '');
   const [swatchUrl, setSwatchUrl] = useState<string | null>(product?.swatch_url || null);
   const [uploading, setUploading] = useState(false);
@@ -38,6 +56,22 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isCustomBrand = brand === '__custom__';
+
+  function updateAttr(key: string, value: string) {
+    setAttributes((prev) => {
+      if (!value) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: value };
+    });
+  }
+
+  function handleCategoryChange(newCategory: ProductCategory) {
+    setCategory(newCategory);
+    setAttributes({});
+  }
 
   async function handleSwatchUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -82,24 +116,44 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    try {
     await onSubmit({
       name,
       brand: isCustomBrand ? customBrand : brand,
       color,
-      style,
+      category,
+      style: category === 'roofing' ? style || null : null,
+      line: line.trim() || null,
+      material: material || null,
+      attributes,
       description,
       swatch_url: swatchUrl,
     });
-    setLoading(false);
+    } catch { toast.error('Unable to save product. Please try again.'); } finally { setLoading(false); }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Category selector */}
+      <div className="space-y-2">
+        <Label>Category</Label>
+        <Select value={category} onValueChange={(v) => handleCategoryChange(v as ProductCategory)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORY_OPTIONS.map((cat) => (
+              <SelectItem key={cat} value={cat}>{CATEGORY_LABELS[cat]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="name">Product Name</Label>
         <Input
           id="name"
-          placeholder="e.g., Timberline HDZ"
+          placeholder="e.g., 400 Series Double-Hung Window"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -131,14 +185,14 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label>Style</Label>
-          <Select value={style} onValueChange={(v) => setStyle(v ?? '')}>
+          <Label>{category === 'roofing' ? 'Roof style' : 'Material'}</Label>
+          <Select value={category === 'roofing' ? style : material} onValueChange={(v) => category === 'roofing' ? setStyle(v ?? '') : setMaterial(v ?? '')}>
             <SelectTrigger>
-              <SelectValue placeholder="Select style" />
+              <SelectValue placeholder="Select material" />
             </SelectTrigger>
             <SelectContent>
-              {ROOF_STYLES.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
+              {(category === 'roofing' ? ROOF_STYLES : FRAME_MATERIALS).map((m) => (
+                <SelectItem key={m} value={category === 'roofing' ? m : m.toLowerCase()}>{m}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -149,12 +203,211 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
         <Label htmlFor="color">Color</Label>
         <Input
           id="color"
-          placeholder="e.g., Charcoal, Weathered Wood, Slate"
+          placeholder="e.g., White, Dark Bronze, Pebble Gray"
           value={color}
           onChange={(e) => setColor(e.target.value)}
           required
         />
       </div>
+
+      <div className="space-y-2"><Label htmlFor="product-line">Product line (optional)</Label><Input id="product-line" value={line} onChange={(e) => setLine(e.target.value)} placeholder="e.g., Timberline HDZ, Acclaim" /></div>
+      {/* Category-specific attribute fields */}
+      {category !== 'roofing' && <div className="space-y-3 rounded-lg border border-brand-peach/20 bg-brand-peach-light/30 p-3">
+        <p className="text-sm font-medium text-brand-brown/70">
+          {CATEGORY_LABELS[category]} Attributes
+        </p>
+
+        {category === 'window' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Window Type</Label>
+              <Select
+                value={(attributes.windowType as string) || ''}
+                onValueChange={(v) => updateAttr('windowType', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WINDOW_TYPES.map((t) => (
+                    <SelectItem key={t} value={t.toLowerCase()}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Glass Type</Label>
+              <Select
+                value={(attributes.glassType as string) || ''}
+                onValueChange={(v) => updateAttr('glassType', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select glass" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GLASS_TYPES.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Grid Pattern</Label>
+              <Select
+                value={(attributes.gridPattern as string) || ''}
+                onValueChange={(v) => updateAttr('gridPattern', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select pattern" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRID_PATTERNS.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {category === 'sliding_glass_door' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Configuration</Label>
+              <Select
+                value={(attributes.configuration as string) || ''}
+                onValueChange={(v) => updateAttr('configuration', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select config" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SLIDING_DOOR_CONFIGS.map((c) => (
+                    <SelectItem key={c} value={c.toLowerCase()}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Panel Layout</Label>
+              <Select
+                value={(attributes.panelLayout as string) || ''}
+                onValueChange={(v) => updateAttr('panelLayout', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select layout" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['OX', 'XO', 'OXO', 'OXXO'].map((l) => (
+                    <SelectItem key={l} value={l}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Glass Type</Label>
+              <Select
+                value={(attributes.glassType as string) || ''}
+                onValueChange={(v) => updateAttr('glassType', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select glass" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GLASS_TYPES.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Grid Pattern</Label>
+              <Select
+                value={(attributes.gridPattern as string) || ''}
+                onValueChange={(v) => updateAttr('gridPattern', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select pattern" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRID_PATTERNS.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {category === 'entry_door' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Door Style</Label>
+              <Select
+                value={(attributes.doorStyle as string) || ''}
+                onValueChange={(v) => updateAttr('doorStyle', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ENTRY_DOOR_STYLES.map((s) => (
+                    <SelectItem key={s} value={s.toLowerCase()}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Glass Type</Label>
+              <Select
+                value={(attributes.glassType as string) || ''}
+                onValueChange={(v) => updateAttr('glassType', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select glass" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['none', 'full-light', 'half-light', 'quarter-light', 'sidelight', 'transom', 'decorative'].map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Sidelight Config</Label>
+              <Select
+                value={(attributes.sidelightConfig as string) || ''}
+                onValueChange={(v) => updateAttr('sidelightConfig', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select sidelight" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['none', 'left', 'right', 'both'].map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Handle Set</Label>
+              <Select
+                value={(attributes.handleSet as string) || ''}
+                onValueChange={(v) => updateAttr('handleSet', v ?? '')}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select handle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {['lever', 'knob', 'handleset', 'pull-bar'].map((h) => (
+                    <SelectItem key={h} value={h}>{h}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+      </div>}
 
       {/* Swatch image upload */}
       <div className="space-y-2">
@@ -162,7 +415,7 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
         {swatchUrl ? (
           <div className="flex items-center gap-3">
             <div className="relative w-16 h-16 rounded-lg overflow-hidden border shadow-sm">
-              <img src={swatchUrl} alt="Swatch preview" className="w-full h-full object-cover" />
+              <Image src={swatchUrl} alt="Swatch preview" fill unoptimized className="object-cover" />
             </div>
             <Button
               type="button"
@@ -204,7 +457,7 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
         <Label htmlFor="description">Description (helps AI accuracy)</Label>
         <Textarea
           id="description"
-          placeholder="e.g., Dark gray architectural shingle with dimensional shadow lines and a slight blue undertone"
+          placeholder="e.g., White vinyl double-hung window with colonial grids and Low-E glass"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
@@ -218,7 +471,7 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading || uploading || !(isCustomBrand ? customBrand.trim() : brand.trim())}>
           {loading ? 'Saving...' : product ? 'Update Product' : 'Add Product'}
         </Button>
       </div>

@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { proposalSchema, parseBody } from '@/lib/validation';
+import { isTenantMediaPath } from '@/lib/security-policy';
+import { CATEGORY_LABELS, type ProductCategory } from '@/types';
 
 const PRO_PLANS = ['pro', 'business', 'business_pro'];
 
@@ -90,6 +92,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Visualization is not completed yet' }, { status: 400 });
     }
 
+    // Privileged downloads must stay inside this company's storage namespace,
+    // including for legacy rows created before the database integrity constraints.
+    if (![visualization.original_image_path, visualization.result_image_path]
+      .every(path => isTenantMediaPath(path, profile.tenant_id))) {
+      return NextResponse.json({ error: 'Visualization images are unavailable.' }, { status: 404 });
+    }
+
     // 5. Fetch tenant info
     const { data: tenant } = await adminSupabase
       .from('tenants')
@@ -117,12 +126,16 @@ export async function POST(request: NextRequest) {
     let logoBytes: Uint8Array | null = null;
     if (tenant?.logo_url) {
       try {
-        const logoResponse = await fetch(tenant.logo_url);
-        if (logoResponse.ok) {
-          logoBytes = new Uint8Array(await logoResponse.arrayBuffer());
+        const logoUrl = new URL(tenant.logo_url);
+        const storageOrigin = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin;
+        const logoPrefix = `/storage/v1/object/public/logos/${profile.tenant_id}/`;
+        if (logoUrl.origin === storageOrigin && logoUrl.pathname.startsWith(logoPrefix)) {
+          const objectPath = decodeURIComponent(logoUrl.pathname.slice('/storage/v1/object/public/logos/'.length));
+          const { data } = await adminSupabase.storage.from('logos').download(objectPath);
+          if (data && data.size <= 5 * 1024 * 1024) logoBytes = new Uint8Array(await data.arrayBuffer());
         }
       } catch {
-        // Logo fetch failed — continue without it
+        // Optional logo failure must not block the proposal.
       }
     }
 
@@ -298,6 +311,7 @@ export async function POST(request: NextRequest) {
       yPos -= 22;
 
       const details: [string, string][] = [
+        ['Category', CATEGORY_LABELS[(product.category || 'roofing') as ProductCategory] || 'Exterior'],
         ['Name', pdfSafe(product.name)],
         ['Brand', pdfSafe(product.brand)],
         ['Color', pdfSafe(product.color)],
@@ -378,7 +392,7 @@ export async function POST(request: NextRequest) {
       color: rgb(0.8, 0.8, 0.8),
     });
 
-    page.drawText('Generated with RoofViz', {
+    page.drawText('ExteriorViz | AI concept preview. Verify products and measurements before ordering.', {
       x: margin,
       y: 35,
       size: 8,
@@ -401,7 +415,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Proposal generation error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to generate proposal';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Could not create the proposal. Please try again.' }, { status: 500 });
   }
 }

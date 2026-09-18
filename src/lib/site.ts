@@ -21,11 +21,11 @@ export function getSiteUrl(): string {
 }
 
 /** Public support / contact address shown in the app and legal pages. */
-export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@example.com';
+export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'connor@bar9.ai';
 
 /**
  * From-address for transactional email. Resend can only send from a VERIFIED domain;
  * until one is set up, it falls back to Resend's shared onboarding sender, which can
  * only deliver to your own account email. Set EMAIL_FROM once your domain is verified.
  */
-export const EMAIL_FROM = process.env.EMAIL_FROM || 'RoofViz <onboarding@resend.dev>';
+export const EMAIL_FROM = process.env.EMAIL_FROM || 'ExteriorViz <onboarding@resend.dev>';

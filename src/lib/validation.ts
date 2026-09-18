@@ -23,6 +23,8 @@ export const visualizeSchema = z.object({
   customerName: z.string().max(200).nullish(),
   customerAddress: z.string().max(500).nullish(),
   enhance: z.boolean().optional(),
+  category: z.enum(['roofing', 'window', 'sliding_glass_door', 'entry_door']).nullish(),
+  perspective: z.enum(['exterior', 'interior']).default('exterior'),
 });
 
 export const shareSchema = z.object({
@@ -55,18 +57,18 @@ export const inviteValidateSchema = z.object({
 });
 
 export const catalogSeedSchema = z.object({
-  products: z
-    .array(
-      z.object({
-        brand: z.string().max(100),
-        line: z.string().max(200),
-        color: z.string().max(100),
-        style: z.string().max(100).optional(),
-        description: z.string().max(2000).optional(),
-      })
-    )
-    .min(1, 'At least one product is required')
-    .max(200, 'Maximum 200 products per request'),
+  products: z.array(z.object({
+    category: z.enum(['roofing', 'window', 'sliding_glass_door', 'entry_door']).default('roofing'),
+    brand: z.string().min(1).max(100),
+    line: z.string().min(1).max(200),
+    name: z.string().max(300).nullish(),
+    color: z.string().min(1).max(100),
+    style: z.string().max(100).nullish(),
+    material: z.string().max(100).nullish(),
+    description: z.string().max(2000).nullish(),
+    reference_image_url: z.string().url().max(2000).nullish(),
+    attributes: z.record(z.string(), z.unknown()).nullish(),
+  })).min(1, 'At least one product is required').max(600, 'Maximum 600 products per request'),
 });
 
 export const inviteSendSchema = z.object({

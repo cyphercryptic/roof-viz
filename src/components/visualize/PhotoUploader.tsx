@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Camera, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MAX_FILE_SIZE } from '@/lib/constants';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 async function convertHeicToJpeg(file: File): Promise<File> {
   // Only convert HEIC/HEIF files
@@ -62,10 +63,17 @@ interface PhotoUploaderProps {
 }
 
 export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUploaderProps) {
+  const [preparing, setPreparing] = useState(false);
+  const busy = uploading || preparing;
   const handleFile = useCallback(async (file: File) => {
-    const converted = await convertHeicToJpeg(file);
-    const resized = await resizeIfLarge(converted);
-    onUpload(resized);
+    if (file.size > MAX_FILE_SIZE) { toast.error(`Photo must be under ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB.`); return; }
+    setPreparing(true);
+    try {
+      const converted = await convertHeicToJpeg(file);
+      const resized = await resizeIfLarge(converted);
+      if (resized.size > 4 * 1024 * 1024) throw new Error('Please choose a smaller photo, under 4MB.');
+      onUpload(resized);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to read this photo. Please use JPEG, PNG, or WebP.'); } finally { setPreparing(false); }
   }, [onUpload]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -78,7 +86,8 @@ export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUp
     accept: { 'image/*': ['.jpeg', '.jpg', '.png', '.webp', '.heic', '.heif'] },
     maxSize: MAX_FILE_SIZE,
     maxFiles: 1,
-    disabled: uploading,
+    disabled: busy,
+    onDropRejected: () => toast.error(`Choose one JPEG, PNG, WebP, or HEIC photo under ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB.`),
   });
 
   if (preview) {
@@ -98,6 +107,8 @@ export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUp
           size="icon"
           className="absolute top-3 right-3 rounded-full shadow-lg"
           onClick={onClear}
+          disabled={busy}
+          aria-label="Remove photo"
         >
           <X className="h-4 w-4" />
         </Button>
@@ -112,14 +123,14 @@ export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUp
         flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed p-8
         aspect-[4/3] cursor-pointer transition-colors
         ${isDragActive ? 'border-brand-orange bg-brand-peach-light' : 'border-brand-peach/40 hover:border-brand-orange hover:bg-brand-peach-light'}
-        ${uploading ? 'pointer-events-none opacity-50' : ''}
+        ${busy ? 'pointer-events-none opacity-50' : ''}
       `}
     >
       <input {...getInputProps()} />
-      {uploading ? (
+      {busy ? (
         <>
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-orange border-t-transparent" />
-          <p className="text-sm text-brand-brown/50">Uploading photo...</p>
+          <p className="text-sm text-brand-brown/50">{preparing ? 'Preparing photo…' : 'Uploading photo…'}</p>
         </>
       ) : (
         <>
@@ -136,7 +147,7 @@ export function PhotoUploader({ onUpload, preview, uploading, onClear }: PhotoUp
               {isDragActive ? 'Drop photo here' : 'Upload house photo'}
             </p>
             <p className="mt-1 text-sm text-brand-brown/50">
-              Take a photo or drag & drop. JPEG, PNG, or WebP up to 10MB.
+              Take a photo or drag & drop. JPEG, PNG, WebP, or HEIC up to {Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB.
             </p>
           </div>
           {/* Hidden camera input for mobile */}

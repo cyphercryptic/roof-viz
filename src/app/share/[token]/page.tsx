@@ -1,10 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound } from 'next/navigation';
 import { SharePageClient } from './SharePageClient';
+import { isTenantMediaPath } from '@/lib/security-policy';
 
 // Rendered per request: the view counter increments and the signed image URLs
 // below must be freshly minted so expiry/revocation of the link actually bites.
 export const dynamic = 'force-dynamic';
+export const metadata = { robots: { index: false, follow: false } };
 
 interface SharePageProps {
   params: Promise<{ token: string }>;
@@ -12,6 +14,7 @@ interface SharePageProps {
 
 export default async function SharePage({ params }: SharePageProps) {
   const { token } = await params;
+  if (!/^[a-f0-9]{32}$/.test(token)) notFound();
   const supabase = createAdminClient();
 
   // Fetch the shared link with visualization, product, and tenant data
@@ -38,7 +41,10 @@ export default async function SharePage({ params }: SharePageProps) {
   }
 
   const viz = link.visualizations;
-  if (!viz || viz.status !== 'completed' || !viz.result_image_path) {
+  if (!viz || viz.tenant_id !== link.tenant_id || viz.status !== 'completed'
+    || (viz.products && viz.products.tenant_id !== link.tenant_id)
+    || !isTenantMediaPath(viz.original_image_path, link.tenant_id)
+    || !isTenantMediaPath(viz.result_image_path, link.tenant_id)) {
     notFound();
   }
 
@@ -58,19 +64,18 @@ export default async function SharePage({ params }: SharePageProps) {
 
   const isWhiteLabel = subscription?.plan === 'business_pro';
 
-  // Increment view count (fire and forget)
-  supabase
+  await supabase
     .from('shared_links')
     .update({ view_count: (link.view_count || 0) + 1 })
-    .eq('id', link.id)
-    .then();
+    .eq('id', link.id);
 
   // Buckets are private — mint short-lived signed URLs with the service role.
-  // These are the ONLY way a homeowner sees the images, so expiring/revoking
-  // the share link genuinely cuts off access.
+  // Revocation prevents new URLs; already issued URLs live for at most 5 minutes.
+  const signedUrlSeconds = Math.max(1, Math.min(300, link.expires_at
+    ? Math.floor((Date.parse(link.expires_at) - new Date().getTime()) / 1000) : 300));
   const [{ data: beforeData }, { data: afterData }] = await Promise.all([
-    supabase.storage.from('house-photos').createSignedUrl(viz.original_image_path, 60 * 60),
-    supabase.storage.from('visualizations').createSignedUrl(viz.result_image_path, 60 * 60),
+    supabase.storage.from('house-photos').createSignedUrl(viz.original_image_path, signedUrlSeconds),
+    supabase.storage.from('visualizations').createSignedUrl(viz.result_image_path, signedUrlSeconds),
   ]);
 
   if (!beforeData || !afterData) {
@@ -88,7 +93,7 @@ export default async function SharePage({ params }: SharePageProps) {
       productBrand={viz.products?.brand || ''}
       productColor={viz.products?.color || ''}
       customerName={viz.customer_name}
-      companyName={tenant?.name || 'RoofViz'}
+      companyName={tenant?.name || 'ExteriorViz'}
       whiteLabel={isWhiteLabel}
       primaryColor={isWhiteLabel ? tenant?.brand_primary_color || '#E07A2F' : '#E07A2F'}
       secondaryColor={isWhiteLabel ? tenant?.brand_secondary_color || '#3D2B1F' : '#3D2B1F'}

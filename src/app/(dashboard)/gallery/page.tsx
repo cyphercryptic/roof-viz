@@ -252,7 +252,7 @@ export default function GalleryPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `roof-proposal-${vizId}.pdf`;
+      a.download = `exterior-proposal-${vizId}.pdf`;
       a.click();
       window.URL.revokeObjectURL(url);
       toast.success('PDF proposal downloaded!');
@@ -345,7 +345,7 @@ export default function GalleryPage() {
               ? 'Select the first visualization to compare'
               : !compareB
                 ? 'Now select a second visualization to compare'
-                : 'Drag the slider to compare the two roof options'}
+                : 'Drag the slider to compare the two product options'}
           </div>
         )}
 
@@ -530,8 +530,8 @@ export default function GalleryPage() {
         <h1 className="text-2xl font-bold">Visualization Gallery</h1>
         <p className="text-brand-brown/50">
           {profile?.role === 'admin' || profile?.role === 'owner'
-            ? 'All past roof visualizations for your team'
-            : 'Your roof visualizations'}
+            ? 'Roofing, window and door previews for your team'
+            : 'Your roofing, window and door previews'}
         </p>
       </div>
 

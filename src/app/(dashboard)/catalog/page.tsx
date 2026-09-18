@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Package, Library, Check, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { MASTER_PRODUCTS, getProductLinesByBrand, type MasterProduct } from '@/lib/master-products';
+import { MASTER_PRODUCTS, type MasterProduct } from '@/lib/master-products';
 import { ProductSwatch } from '@/components/catalog/ProductSwatch';
-import type { Product } from '@/types';
+import type { Product, ProductCategory } from '@/types';
+import { CATEGORY_LABELS } from '@/types';
+
+const CATEGORY_TABS: ProductCategory[] = ['roofing', 'window', 'sliding_glass_door', 'entry_door'];
 
 export default function CatalogPage() {
   const { profile } = useUser();
@@ -23,6 +26,9 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const supabase = createClient();
+
+  // Category filter state
+  const [activeCategory, setActiveCategory] = useState<ProductCategory>('roofing');
 
   // Master catalog state
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -32,7 +38,21 @@ export default function CatalogPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
-  const linesByBrand = getProductLinesByBrand();
+
+  // Filter master products and lines by active category
+  const categoryMasterProducts = useMemo(
+    () => MASTER_PRODUCTS.filter((p) => (p.category || 'roofing') === activeCategory),
+    [activeCategory]
+  );
+
+  const linesByBrand = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    for (const p of categoryMasterProducts) {
+      if (!result[p.brand]) result[p.brand] = [];
+      if (!result[p.brand].includes(p.line)) result[p.brand].push(p.line);
+    }
+    return result;
+  }, [categoryMasterProducts]);
 
   useEffect(() => {
     loadProducts();
@@ -47,7 +67,8 @@ export default function CatalogPage() {
       .order('name', { ascending: true });
 
     if (error) {
-      toast.error('Failed to load products');
+      toast.error('Failed to load products. Please refresh to try again.');
+      setLoading(false);
       return;
     }
     setProducts(data || []);
@@ -58,7 +79,11 @@ export default function CatalogPage() {
     name: string;
     brand: string;
     color: string;
-    style: string;
+    category: ProductCategory;
+    style: string | null;
+    line: string | null;
+    material: string | null;
+    attributes: Record<string, unknown>;
     description: string;
     swatch_url: string | null;
   }) {
@@ -93,15 +118,13 @@ export default function CatalogPage() {
 
   // Check if a master product already exists in the tenant's catalog
   function isAlreadyAdded(mp: MasterProduct): boolean {
-    return products.some(
-      (p) => p.brand === mp.brand && p.color === mp.color && p.name.includes(mp.line)
-    );
+    return products.some((p) => p.name === mp.name);
   }
 
   // Get the filtered product lines for the selected brand
   function getFilteredLines(): MasterProduct[] {
     if (!selectedBrand || !selectedLine) return [];
-    return MASTER_PRODUCTS.filter(
+    return categoryMasterProducts.filter(
       (p) => p.brand === selectedBrand && p.line === selectedLine
     );
   }
@@ -122,7 +145,7 @@ export default function CatalogPage() {
   // Select all colors for current line
   function selectAllColors() {
     const lineProducts = getFilteredLines().filter((mp) => !isAlreadyAdded(mp) && !mp.comingSoon);
-    setSelectedColors(new Set(lineProducts.map((mp) => `${mp.brand}|${mp.line}|${mp.color}`)));
+    setSelectedColors(new Set(lineProducts.map((mp) => mp.name)));
   }
 
   // Add selected products from master catalog
@@ -134,10 +157,11 @@ export default function CatalogPage() {
 
     setAdding(true);
 
-    const productsToAdd = MASTER_PRODUCTS.filter((mp) =>
-      selectedColors.has(`${mp.brand}|${mp.line}|${mp.color}`)
+    const productsToAdd = categoryMasterProducts.filter((mp) =>
+      selectedColors.has(mp.name) && !mp.comingSoon && !isAlreadyAdded(mp)
     );
 
+    try {
     const res = await fetch('/api/catalog/seed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -156,17 +180,19 @@ export default function CatalogPage() {
     setSelectedColors(new Set());
     setAdding(false);
     loadProducts();
+    } catch { toast.error('Unable to add products. Check your connection and try again.'); } finally { setAdding(false); }
   }
 
-  // Filter existing products by search
+  // Filter existing products by category and search
+  const categoryProducts = products.filter((p) => (p.category || 'roofing') === activeCategory);
   const filteredProducts = searchQuery
-    ? products.filter(
+    ? categoryProducts.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.color.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : products;
+    : categoryProducts;
 
   if (!isAdmin) {
     return (
@@ -184,6 +210,39 @@ export default function CatalogPage() {
         <p className="text-brand-brown/50">Add products from our database or create custom ones</p>
       </div>
 
+      {/* Category tab bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 mb-4 rounded-lg bg-brand-peach-light/50 p-1 border border-brand-peach/20">
+        {CATEGORY_TABS.map((cat) => {
+          const count = products.filter((p) => (p.category || 'roofing') === cat).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => {
+                setActiveCategory(cat);
+                setSelectedBrand(null);
+                setSelectedLine(null);
+                setSelectedColors(new Set());
+                setSearchQuery('');
+              }}
+              className={`
+                flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all
+                ${activeCategory === cat
+                  ? 'bg-white shadow-sm text-brand-brown'
+                  : 'text-brand-brown/50 hover:text-brand-brown/70'
+                }
+              `}
+            >
+              {CATEGORY_LABELS[cat]}
+              {count > 0 && (
+                <Badge variant="secondary" className="ml-2 text-[10px] px-1.5 py-0">
+                  {count}
+                </Badge>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       <Tabs defaultValue="browse">
         <TabsList>
           <TabsTrigger value="browse">
@@ -192,7 +251,7 @@ export default function CatalogPage() {
           </TabsTrigger>
           <TabsTrigger value="my-catalog">
             <Package className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">My </span>Catalog ({products.length})
+            <span className="hidden sm:inline">My </span>Catalog ({categoryProducts.length})
           </TabsTrigger>
         </TabsList>
 
@@ -202,7 +261,7 @@ export default function CatalogPage() {
             <CardHeader>
               <CardTitle className="text-lg">Select Products to Add</CardTitle>
               <p className="text-sm text-brand-brown/50">
-                Browse our database of {MASTER_PRODUCTS.length}+ roofing products from top brands. Select the ones your company offers.
+                Browse our database of {categoryMasterProducts.length} {CATEGORY_LABELS[activeCategory].toLowerCase()} from top brands. Select the ones your company offers.
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -233,12 +292,11 @@ export default function CatalogPage() {
                   <p className="text-sm font-medium mb-3">2. Choose a product line</p>
                   <div className="flex flex-wrap gap-2">
                     {linesByBrand[selectedBrand].map((line) => {
-                      const colorCount = MASTER_PRODUCTS.filter(
+                      const lineProducts = categoryMasterProducts.filter(
                         (p) => p.brand === selectedBrand && p.line === line
-                      ).length;
-                      const style = MASTER_PRODUCTS.find(
-                        (p) => p.brand === selectedBrand && p.line === line
-                      )?.style;
+                      );
+                      const colorCount = lineProducts.length;
+                      const material = lineProducts[0]?.material;
                       return (
                         <Button
                           key={line}
@@ -252,7 +310,7 @@ export default function CatalogPage() {
                         >
                           <span>{line}</span>
                           <span className="text-xs opacity-70">
-                            {style} &middot; {colorCount} colors
+                            {material && <>{material} &middot; </>}{colorCount} colors
                           </span>
                         </Button>
                       );
@@ -272,7 +330,7 @@ export default function CatalogPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                     {getFilteredLines().map((mp) => {
-                      const key = `${mp.brand}|${mp.line}|${mp.color}`;
+                      const key = mp.name;
                       const alreadyAdded = isAlreadyAdded(mp);
                       const isSelected = selectedColors.has(key);
                       const isComingSoon = mp.comingSoon === true;
@@ -295,13 +353,14 @@ export default function CatalogPage() {
                           `}
                         >
                           <ProductSwatch
+                            category={mp.category}
                             brand={mp.brand}
                             line={mp.line}
                             color={mp.color}
                             className="h-8 w-8 rounded border shadow-sm flex-shrink-0"
                           />
                           <div className="min-w-0">
-                            <p className="font-medium truncate">{mp.color}</p>
+                            <p className="font-medium">{activeCategory === 'roofing' ? mp.color : mp.name}</p>
                             {isComingSoon && (
                               <p className="text-xs text-amber-600 font-medium">Coming Soon</p>
                             )}
@@ -369,9 +428,9 @@ export default function CatalogPage() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-brand-brown/50">
                 <Package className="h-12 w-12 mb-4" />
-                {products.length === 0 ? (
+                {categoryProducts.length === 0 ? (
                   <>
-                    <p className="mb-2">No products in your catalog yet.</p>
+                    <p className="mb-2">No {CATEGORY_LABELS[activeCategory].toLowerCase()} in your catalog yet.</p>
                     <p className="text-sm mb-4">Use the &quot;Browse Products&quot; tab to add from our database.</p>
                   </>
                 ) : (
@@ -419,6 +478,7 @@ export default function CatalogPage() {
             <DialogTitle>Add Custom Product</DialogTitle>
           </DialogHeader>
           <ProductForm
+            defaultCategory={activeCategory}
             onSubmit={handleSubmit}
             onCancel={() => setDialogOpen(false)}
           />

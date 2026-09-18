@@ -2,32 +2,38 @@ import type { Metadata } from 'next';
 import { SUPPORT_EMAIL } from '@/lib/site';
 
 export const metadata: Metadata = {
-  title: 'Terms of Service - RoofViz',
-  description: 'RoofViz Terms of Service for our AI roof visualization platform.',
+  title: 'Terms of Service',
+  description: 'ExteriorViz Terms of Service for AI roof, window, and door previews.',
 };
 
 export default function TermsOfServicePage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
-      <article className="prose prose-neutral max-w-none prose-headings:text-brand-brown prose-a:text-brand-orange hover:prose-a:text-brand-orange-dark">
+      <article className="text-[15px] leading-7 text-muted-foreground [&_h1]:mb-3 [&_h1]:text-4xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-brand-brown [&_h2]:mb-3 [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-brand-brown [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:font-semibold [&_h3]:text-brand-brown [&_p]:mb-4 [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_a]:text-brand-orange [&_a]:underline [&_a]:underline-offset-4 [&_strong]:font-semibold [&_strong]:text-brand-brown">
         <h1>Terms of Service</h1>
-        <p className="text-sm text-muted-foreground">Last updated: April 2, 2026</p>
+        <p className="text-sm text-muted-foreground">Last updated: September 18, 2026</p>
 
         <h2>1. Acceptance of Terms</h2>
         <p>
-          By accessing or using RoofViz (&quot;the Service&quot;), you agree to be bound by these Terms
+          By accessing or using ExteriorViz (&quot;the Service&quot;), you agree to be bound by these Terms
           of Service (&quot;Terms&quot;). If you do not agree to these Terms, you may not use the
-          Service. These Terms constitute a legally binding agreement between you and RoofViz
-          (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;).
+          Service. ExteriorViz is operated by Bar9 AI (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;).
         </p>
 
         <h2>2. Description of Service</h2>
         <p>
-          RoofViz is a multi-tenant software-as-a-service (SaaS) platform that enables roofing
-          sales professionals to visualize roof products on customer homes using artificial
-          intelligence. The Service allows users to upload photos of residential properties and
-          generate AI-powered visualizations showing how various roofing products would appear
-          once installed.
+          ExteriorViz helps home-improvement professionals explore roof, window, and door
+          options using AI previews of property photos. Your organization can manage products,
+          generate previews, and use the collaboration and sharing features included in its plan.
+        </p>
+        <p>
+          Previews are illustrative concepts. AI may alter proportions, surrounding details,
+          textures, or colors, and screen displays may differ from physical samples. A preview
+          is not a measurement, construction plan, product specification, installation quote,
+          or guarantee of the finished result. Verify product availability, dimensions,
+          materials, and installation requirements with the manufacturer and a qualified
+          contractor before making purchasing or construction decisions. Present shared
+          previews as AI-generated concepts.
         </p>
 
         <h2>3. User Accounts and Responsibilities</h2>
@@ -44,7 +50,7 @@ export default function TermsOfServicePage() {
 
         <h2>4. Subscription and Billing</h2>
         <p>
-          RoofViz offers monthly subscription plans. All billing is processed through Stripe, a
+          ExteriorViz offers the plans and usage allowances shown at checkout. Billing is processed through Stripe, a
           third-party payment processor. By subscribing to a paid plan, you agree to the
           following:
         </p>
@@ -55,8 +61,8 @@ export default function TermsOfServicePage() {
           </li>
           <li>
             You may cancel your subscription at any time through your account settings.
-            Cancellation takes effect at the end of the current billing period. No partial
-            refunds are provided for unused portions of a billing cycle.
+            Cancellation takes effect at the end of the current billing period. Except where required by applicable law, no partial refunds are provided for unused
+            portions of a billing cycle.
           </li>
           <li>
             We reserve the right to change pricing with at least 30 days&apos; notice. Continued
@@ -76,20 +82,20 @@ export default function TermsOfServicePage() {
           <li>Scrape, crawl, or use automated means to access the Service or extract data from it.</li>
           <li>Attempt to reverse-engineer, decompile, or disassemble any part of the Service.</li>
           <li>Interfere with or disrupt the integrity or performance of the Service.</li>
-          <li>Use the Service for any purpose other than its intended use as a roof visualization tool.</li>
+          <li>Use the Service for any purpose other than its intended use as a roof, window, and door visualization tool.</li>
           <li>Resell, redistribute, or sublicense access to the Service without our written consent.</li>
         </ul>
 
         <h2>6. Intellectual Property</h2>
         <p>
           You retain all rights to the photographs and images you upload to the Service. By
-          uploading content, you grant RoofViz a limited, non-exclusive license to process,
+          uploading content, you grant ExteriorViz a limited, non-exclusive license to process,
           store, and display your content solely for the purpose of providing the Service to
           you.
         </p>
         <p>
-          RoofViz and its licensors retain all rights, title, and interest in the Service,
-          including but not limited to the platform, software, AI models, user interface
+          ExteriorViz and its licensors retain all rights, title, and interest in the Service,
+          including but not limited to the platform, software, user interface
           designs, trademarks, and documentation. Nothing in these Terms transfers any
           intellectual property rights in the Service to you.
         </p>
@@ -104,7 +110,7 @@ export default function TermsOfServicePage() {
 
         <h2>8. Limitation of Liability</h2>
         <p>
-          To the maximum extent permitted by applicable law, RoofViz and its officers,
+          To the maximum extent permitted by applicable law, ExteriorViz and its officers,
           directors, employees, and agents shall not be liable for any indirect, incidental,
           special, consequential, or punitive damages, including but not limited to loss of
           profits, data, or business opportunities, arising out of or related to your use of
@@ -125,7 +131,8 @@ export default function TermsOfServicePage() {
           export of your data within 30 days of termination by contacting us.
         </p>
         <p>
-          You may terminate your account at any time by canceling your subscription and
+          Canceling a subscription does not automatically delete your account. You may
+          terminate your account by canceling your subscription and
           contacting us to request account deletion.
         </p>
 
@@ -140,10 +147,9 @@ export default function TermsOfServicePage() {
 
         <h2>11. Governing Law</h2>
         <p>
-          These Terms shall be governed by and construed in accordance with the laws of the
-          State of Delaware, without regard to its conflict of law provisions. Any disputes
-          arising under these Terms shall be resolved in the state or federal courts located
-          in Delaware.
+          These Terms are subject to applicable law. Nothing in these Terms excludes rights or
+          remedies that cannot lawfully be excluded. If a concern arises, contact us using
+          the address below so we can try to resolve it.
         </p>
 
         <h2>12. Contact Information</h2>

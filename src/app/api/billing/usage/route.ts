@@ -22,10 +22,13 @@ export async function GET() {
   }
 
   const adminSupabase = createAdminClient();
-  const usage = await checkUsage(adminSupabase, profile.tenant_id, {
-    userId: user.id,
-    role: profile.role,
-  });
-
-  return NextResponse.json(usage);
+  try {
+    const usage = await checkUsage(adminSupabase, profile.tenant_id, {
+      userId: user.id,
+      role: profile.role,
+    });
+    return NextResponse.json(usage);
+  } catch {
+    return NextResponse.json({ error: 'Could not load your visualization allowance. Please try again.' }, { status: 503 });
+  }
 }

@@ -54,68 +54,69 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* ============================================================
-     Brand palette — warm amber editorial
+     ExteriorViz palette — architectural blue and slate
      Core tokens (kept stable for dashboard/auth compatibility),
      plus editorial extensions for the landing page.
      ============================================================ */
 
-  /* Cream canvases */
-  --color-brand-cream: #FFFDF5;          /* Dominant page background */
-  --color-brand-cream-soft: #FBF4E4;     /* Warmer cream — content surfaces */
-  --color-brand-ivory: #FFF9EC;          /* Very soft paper */
+  /* Page canvases */
+  --color-brand-cream: #F7FAFC;          /* Dominant page background */
+  --color-brand-cream-soft: #EFF5F8;     /* Warmer cream — content surfaces */
+  --color-brand-ivory: #F3F7FA;          /* Very soft paper */
 
-  /* Peach / wheat — warm stratification */
-  --color-brand-peach: #FFCF9E;          /* Primary warm mid-tone */
-  --color-brand-peach-light: #FFF0DC;    /* Hover / subtle accents */
-  --color-brand-peach-deep: #E09B63;     /* Terracotta — decorative accents */
-  --color-brand-wheat: #EEDDB6;          /* Wheat band — pricing background */
-  --color-brand-wheat-soft: #F7ECD3;     /* Lighter wheat */
+  /* Supporting surfaces (legacy token names retained) */
+  --color-brand-peach: #C5D8E4;          /* Primary warm mid-tone */
+  --color-brand-peach-light: #E7F1F5;    /* Hover / subtle accents */
+  --color-brand-peach-deep: #709BB3;     /* Terracotta — decorative accents */
+  --color-brand-wheat: #DCE8EF;          /* Wheat band — pricing background */
+  --color-brand-wheat-soft: #EDF4F8;     /* Lighter wheat */
 
-  /* Orange — primary action, editorial emphasis (italic word color) */
-  --color-brand-orange: #F58025;
-  --color-brand-orange-dark: #D96A10;
-  --color-brand-orange-deep: #A84D06;    /* Deep roast — closing CTA background */
+  /* Primary action (legacy token name retained) */
+  --color-brand-orange: #1F587A;
+  --color-brand-orange-dark: #17425C;
+  --color-brand-orange-deep: #12364D;    /* Deep roast — closing CTA background */
 
-  /* Brown ink — text */
-  --color-brand-brown: #3E2318;
-  --color-brand-brown-soft: #6A4A3A;     /* Secondary text */
-  --color-brand-brown-mute: #957866;     /* Tertiary / metadata */
-  --color-brand-brown-deep: #1F130C;     /* Deeper ink for closing sections */
+  /* Text colors (legacy token names retained) */
+  --color-brand-brown: #173047;
+  --color-brand-brown-soft: #496376;     /* Secondary text */
+  --color-brand-brown-mute: #657D90;     /* Tertiary / metadata */
+  --color-brand-brown-deep: #102536;     /* Deeper ink for closing sections */
 }
 
 :root {
-  --background: #FFFDF5;
-  --foreground: #3E2318;
+  --font-display: var(--font-body);
+  --background: #F7FAFC;
+  --foreground: #173047;
   --card: #FFFFFF;
-  --card-foreground: #3E2318;
+  --card-foreground: #173047;
   --popover: #FFFFFF;
-  --popover-foreground: #3E2318;
-  --primary: #F58025;
+  --popover-foreground: #173047;
+  --primary: #1F587A;
   --primary-foreground: #FFFFFF;
-  --secondary: #FFF0DC;
-  --secondary-foreground: #3E2318;
-  --muted: #FFF6EC;
-  --muted-foreground: #7A5A45;
-  --accent: #FFF0DC;
-  --accent-foreground: #3E2318;
+  --secondary: #E7F1F5;
+  --secondary-foreground: #173047;
+  --muted: #EEF4F8;
+  --muted-foreground: #587083;
+  --accent: #E7F1F5;
+  --accent-foreground: #173047;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #F0E0D0;
-  --input: #F0E0D0;
-  --ring: #F58025;
-  --chart-1: #F58025;
-  --chart-2: #FFCF9E;
-  --chart-3: #3E2318;
-  --chart-4: #D96A10;
-  --chart-5: #7A5A45;
+  --border: #D5E1E9;
+  --input: #D5E1E9;
+  --ring: #1F587A;
+  --chart-1: #1F587A;
+  --chart-2: #C5D8E4;
+  --chart-3: #173047;
+  --chart-4: #17425C;
+  --chart-5: #587083;
   --radius: 0.625rem;
-  --sidebar: #3E2318;
-  --sidebar-foreground: #FFFDF5;
-  --sidebar-primary: #F58025;
+  --sidebar: #173047;
+  --sidebar-foreground: #F7FAFC;
+  --sidebar-primary: #1F587A;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #5A3828;
-  --sidebar-accent-foreground: #FFFDF5;
-  --sidebar-border: #5A3828;
-  --sidebar-ring: #F58025;
+  --sidebar-accent: #28485F;
+  --sidebar-accent-foreground: #F7FAFC;
+  --sidebar-border: #28485F;
+  --sidebar-ring: #1F587A;
 }
 
 @layer base {
@@ -130,10 +131,10 @@
     @apply font-sans;
   }
 
-  /* Selection — warm amber */
+  /* Selection */
   ::selection {
-    background: #F58025;
-    color: #FFFDF5;
+    background: #1F587A;
+    color: #F7FAFC;
   }
 }
 
@@ -206,4 +207,17 @@
     50% { transform: translate3d(0, -8px, 0) rotate(0.5deg); }
   }
   .drift { animation: drift 9s ease-in-out infinite; }
+}
+
+@layer base {
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+@keyframes loading { from { transform: translateX(-100%); } to { transform: translateX(200%); } }
+
+@layer base {
+  aside.bg-brand-brown a:focus-visible { outline-color: #FFFFFF; }
 }

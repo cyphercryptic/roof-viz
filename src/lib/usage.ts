@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { stripe } from '@/lib/stripe';
+import { hasGenerationAccess } from '@/lib/security-policy';
 
 import { SUPPORT_EMAIL } from '@/lib/site';
 
@@ -26,90 +27,43 @@ export async function checkUsage(
   tenantId: string,
   opts?: { userId?: string; role?: string }
 ) {
-  // Demo users get per-user limits (not tenant-level)
-  if (opts?.role === 'demo' && opts.userId) {
-    const DEMO_LIMIT = 5;
-    const { count } = await supabase
-      .from('visualizations')
-      .select('*', { count: 'exact', head: true })
-      .eq('created_by', opts.userId)
-      .eq('status', 'completed');
-
-    const used = count || 0;
-    return {
-      allowed: used < DEMO_LIMIT,
-      used,
-      limit: DEMO_LIMIT,
-      plan: 'demo' as const,
-      message: used >= DEMO_LIMIT
-        ? `You've used all ${DEMO_LIMIT} demo visualizations. Contact us to get full access!`
-        : undefined,
-    };
-  }
-  // Get subscription
-  const { data: subscription } = await supabase
+  const { data: subscription, error: subscriptionError } = await supabase
     .from('subscriptions')
     .select('*')
     .eq('tenant_id', tenantId)
     .single();
 
-  if (!subscription) {
-    // Free tier: allow 10 visualizations per month with no subscription
-    const periodStart = currentMonthStart();
-    const FREE_LIMIT = 5;
-
-    const { count } = await supabase
-      .from('usage_records')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .eq('period_start', periodStart);
-
-    const used = count || 0;
+  if (subscriptionError || !subscription) {
+    throw new Error('Unable to verify your visualization allowance. Please try again.');
+  }
+  if (!hasGenerationAccess(subscription)) {
     return {
-      allowed: used < FREE_LIMIT,
-      used,
-      limit: FREE_LIMIT,
-      plan: 'free' as const,
-      message: used >= FREE_LIMIT ? `You've used all ${FREE_LIMIT} free visualizations this month. Subscribe for more.` : undefined,
+      allowed: false, used: 0, limit: subscription.visualization_limit,
+      plan: subscription.plan,
+      message: 'Please update your billing before creating another visualization.',
     };
   }
 
-  // Unlimited plan
-  if (subscription.visualization_limit === -1) {
-    // Count usage for display purposes but always allow
-    const used = await countCurrentUsage(supabase, tenantId, subscription);
-    return { allowed: true, used, limit: -1, plan: subscription.plan };
-  }
-
-  const used = await countCurrentUsage(supabase, tenantId, subscription);
-  const allowed = used < subscription.visualization_limit;
-
-  return {
-    allowed,
-    used,
-    limit: subscription.visualization_limit,
-    plan: subscription.plan,
-    message: allowed ? undefined : `You've used all ${subscription.visualization_limit} visualizations for this period. Upgrade your plan for more.`,
-  };
-}
-
-async function countCurrentUsage(
-  supabase: SupabaseClient,
-  tenantId: string,
-  subscription: { current_period_start: string | null }
-) {
-  // Records are tagged with the exact period_start they belong to, so match on it
-  // directly. (The previous .lt('period_end', periodEnd) filter excluded every
-  // record, since records are written with period_end === the boundary.)
+  // Match the database INSERT reservation trigger: completed jobs remain counted
+  // even when usage logging fails, and recent in-flight jobs consume capacity.
+  const isDemo = opts?.role === 'demo' && !!opts.userId;
   const periodStart = subscription.current_period_start || currentMonthStart();
-
-  const { count } = await supabase
-    .from('usage_records')
+  const periodEnd = subscription.current_period_end || nextMonthStart();
+  const recent = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  let query = supabase.from('visualizations')
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
-    .eq('period_start', periodStart);
-
-  return count || 0;
+    .or(`status.eq.completed,and(status.eq.processing,created_at.gt.${recent})`);
+  if (isDemo) query = query.eq('created_by', opts!.userId!);
+  else query = query.gte('created_at', periodStart).lt('created_at', periodEnd);
+  const { count, error } = await query;
+  if (error || count === null) throw new Error('Unable to verify your visualization allowance. Please try again.');
+  const limit = isDemo ? 5 : subscription.visualization_limit;
+  const allowed = limit === -1 || count < limit;
+  return {
+    allowed, used: count, limit, plan: isDemo ? 'demo' : subscription.plan,
+    message: allowed ? undefined : `You've used all ${limit} visualizations for this period. Upgrade your plan for more.`,
+  };
 }
 
 /**
@@ -181,6 +135,7 @@ export async function recordUsage(
       if (meteredItem) {
         await stripe.billing.meterEvents.create({
           event_name: 'visualization',
+          identifier: visualizationId,
           payload: {
             stripe_customer_id: stripeSub.customer as string,
             value: '1',
@@ -217,8 +172,8 @@ async function sendUsageAlert(
     const isOver = used >= limit;
 
     const subject = isOver
-      ? `[RoofViz] ${tenantName} has hit their visualization limit (${used}/${limit})`
-      : `[RoofViz] ${tenantName} is at ${percentage}% of their visualization limit (${used}/${limit})`;
+      ? `[ExteriorViz] ${tenantName} has hit their visualization limit (${used}/${limit})`
+      : `[ExteriorViz] ${tenantName} is at ${percentage}% of their visualization limit (${used}/${limit})`;
 
     const body = isOver
       ? `${tenantName} has used all ${limit} visualizations for this billing period. They may need a custom enterprise plan. Consider reaching out to discuss their needs.`

@@ -5,6 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/hooks/useUser';
 import { PhotoUploader } from '@/components/visualize/PhotoUploader';
+import Link from 'next/link';
+import Image from 'next/image';
+import { CategorySelector } from '@/components/visualize/CategorySelector';
+import { ProductConfigurator } from '@/components/visualize/ProductConfigurator';
 import { ProductSelector } from '@/components/visualize/ProductSelector';
 import { BeforeAfterSlider } from '@/components/visualize/BeforeAfterSlider';
 import { Button } from '@/components/ui/button';
@@ -16,7 +20,7 @@ import { Sparkles, RotateCcw, Download, ArrowLeft, ChevronLeft, ChevronRight, Za
 import { toast } from 'sonner';
 import { extractProductLine } from '@/lib/product-images';
 import { SUPPORT_EMAIL } from '@/lib/site';
-import type { Product } from '@/types';
+import { CATEGORY_LABELS, normalizeProduct, type Product, type ProductCategory, type Perspective } from '@/types';
 
 interface UsageInfo {
   used: number;
@@ -50,6 +54,9 @@ export default function VisualizePage() {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [category, setCategory] = useState<ProductCategory>('roofing');
+  const [perspective, setPerspective] = useState<Perspective>('exterior');
+  const [productsLoading, setProductsLoading] = useState(true);
   const [enhance, setEnhance] = useState(false);
 
   // Image state
@@ -64,6 +71,7 @@ export default function VisualizePage() {
   const [generating, setGenerating] = useState(false);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
 
+  const categoryProducts = products.filter((product) => (product.category || 'roofing') === category);
   const activeResult = results[activeResultIndex] ?? null;
 
   useEffect(() => {
@@ -76,7 +84,6 @@ export default function VisualizePage() {
     const photoPath = searchParams.get('photo');
     if (photoPath) {
       setOriginalImagePath(photoPath);
-      setStep('configure');
       // Private bucket — sign the path (RLS scopes this to the user's tenant)
       supabase.storage
         .from('house-photos')
@@ -85,6 +92,10 @@ export default function VisualizePage() {
           if (res.data) {
             setOriginalImageUrl(res.data.signedUrl);
             setPreview(res.data.signedUrl);
+            setStep('configure');
+          } else {
+            setOriginalImagePath('');
+            toast.error('This photo is unavailable. Please upload it again.');
           }
         });
 
@@ -96,20 +107,23 @@ export default function VisualizePage() {
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadProducts() {
-    const { data } = await supabase
+    setProductsLoading(true);
+    const { data, error } = await supabase
       .from('products')
       .select('*')
       .eq('is_active', true)
       .order('brand')
       .order('name');
-    setProducts(data || []);
+    if (error) toast.error('Unable to load products. Please refresh to retry.');
+    setProducts((data || []).map(normalizeProduct));
+    setProductsLoading(false);
   }
 
   async function loadUsage() {
-    const res = await fetch('/api/billing/usage');
-    if (res.ok) {
-      setUsage(await res.json());
-    }
+    try {
+      const res = await fetch('/api/billing/usage');
+      if (res.ok) setUsage(await res.json());
+    } catch { toast.error('Unable to load usage. Please check your connection.'); }
   }
 
   async function handlePhotoUpload(file: File) {
@@ -123,23 +137,26 @@ export default function VisualizePage() {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch('/api/upload', { method: 'POST', body: formData });
-
-    if (!res.ok) {
-      toast.error('Failed to upload photo');
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload photo');
+      setOriginalImagePath(data.path);
+      setOriginalImageUrl(data.url);
+      setStep('configure');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Photo upload failed. Please retry.');
       setPreview(null);
-      setUploading(false);
-      return;
-    }
-
-    const data = await res.json();
-    setOriginalImagePath(data.path);
-    setOriginalImageUrl(data.url);
-    setUploading(false);
-    setStep('configure');
+      setOriginalImagePath('');
+      setOriginalImageUrl('');
+    } finally { setUploading(false); }
   }
 
   function handleClearPhoto() {
+    if (uploading) return;
+    setSelectedProductId('');
+    setResults([]);
+    setActiveResultIndex(0);
     setPreview(null);
     setOriginalImagePath('');
     setOriginalImageUrl('');
@@ -164,7 +181,9 @@ export default function VisualizePage() {
           originalImagePath,
           customerName: customerName || null,
           customerAddress: customerAddress || null,
-          enhance,
+          category,
+          perspective: category === 'roofing' ? 'exterior' : perspective,
+          enhance: category === 'roofing' && enhance,
         }),
       });
 
@@ -207,6 +226,9 @@ export default function VisualizePage() {
     setSelectedProductId('');
     setCustomerName('');
     setCustomerAddress('');
+    setCategory('roofing');
+    setPerspective('exterior');
+    setEnhance(false);
     setResults([]);
     setActiveResultIndex(0);
     setStep('upload');
@@ -219,7 +241,7 @@ export default function VisualizePage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `roof-visualization-${activeResult.id}.png`;
+    a.download = `exterior-visualization-${activeResult.id}.png`;
     a.click();
     window.URL.revokeObjectURL(url);
   }
@@ -227,7 +249,7 @@ export default function VisualizePage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Roof Visualization</h1>
+        <h1 className="text-2xl font-bold">Home Visualization</h1>
         <p className="text-brand-brown/50">
           {step === 'upload' && 'Upload a photo of the house to get started'}
           {step === 'configure' && 'Select a roofing product to visualize'}
@@ -246,7 +268,7 @@ export default function VisualizePage() {
             </p>
           </div>
           <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=Interested%20in%20RoofViz`}
+            href={`mailto:${SUPPORT_EMAIL}?subject=Interested%20in%20ExteriorViz`}
             className="px-4 py-2 bg-brand-orange text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity whitespace-nowrap"
           >
             Contact Sales
@@ -271,7 +293,7 @@ export default function VisualizePage() {
           <PhotoUploader
             onUpload={handlePhotoUpload}
             preview={preview}
-            uploading={false}
+            uploading={uploading}
             onClear={handleClearPhoto}
           />
 
@@ -293,7 +315,10 @@ export default function VisualizePage() {
                       className="flex-shrink-0 rounded-lg border-2 border-brand-peach/30 hover:border-brand-orange overflow-hidden transition-colors"
                     >
                       <div className="w-28">
-                        <img
+                        <Image
+                          width={112}
+                          height={64}
+                          unoptimized
                           src={r.resultUrl}
                           alt={`${r.product.name} visualization`}
                           className="w-full h-16 object-cover"
@@ -312,20 +337,25 @@ export default function VisualizePage() {
 
           <Card>
             <CardContent className="space-y-4 p-6">
+              <div className="space-y-3">
+                <CategorySelector selected={category} onSelect={(nextCategory) => { setCategory(nextCategory); setSelectedProductId(''); setPerspective('exterior'); }} />
+                <p className="text-sm font-medium text-brand-orange">Selected: {CATEGORY_LABELS[category]}</p>
+              </div>
               {/* Product selection */}
               <div className="space-y-2">
-                <Label className="text-base font-medium">Roofing Product</Label>
-                {products.length === 0 ? (
-                  <p className="text-sm text-amber-600">
-                    No products in catalog yet. Ask your admin to add products.
-                  </p>
+                <Label className="text-base font-medium">{CATEGORY_LABELS[category]} product</Label>
+                {productsLoading ? <p className="text-sm text-brand-brown/60">Loading your catalog…</p> : categoryProducts.length === 0 ? (
+                  <div className="rounded-xl border border-brand-peach p-4 space-y-2">
+                    <p className="text-sm">Your catalog has no {CATEGORY_LABELS[category].toLowerCase()} yet.</p>
+                    {profile?.role === 'owner' || profile?.role === 'admin' ? <Link href="/catalog" className="text-sm font-semibold text-brand-orange hover:underline">Add products to your catalog →</Link> : <p className="text-sm text-brand-brown/60">Ask your company admin to add products.</p>}
+                  </div>
+                ) : category === 'roofing' ? (
+                  <ProductSelector key={category} products={categoryProducts} selectedId={selectedProductId} onSelect={setSelectedProductId} />
                 ) : (
-                  <ProductSelector
-                    products={products}
-                    selectedId={selectedProductId}
-                    onSelect={setSelectedProductId}
-                  />
+                  <ProductConfigurator key={category} products={categoryProducts} category={category} selectedId={selectedProductId} onSelect={setSelectedProductId} />
                 )}
+                {category !== 'roofing' && <fieldset className="pt-3"><legend className="text-sm font-medium">Photo view</legend><div className="flex gap-4 pt-2">{(['exterior', 'interior'] as const).map((view) => <label key={view} className="flex items-center gap-2 text-sm capitalize"><input type="radio" name="perspective" value={view} checked={perspective === view} onChange={() => setPerspective(view)} />{view}</label>)}</div></fieldset>}
+
               </div>
 
               {/* Optional customer info (hidden for demo users) */}
@@ -357,7 +387,7 @@ export default function VisualizePage() {
               )}
 
               {/* Photo enhancement toggle */}
-              <label className="flex items-start gap-3 rounded-lg border border-brand-peach/40 bg-brand-cream/50 px-3 py-3 cursor-pointer">
+              {category === 'roofing' && <label className="flex items-start gap-3 rounded-lg border border-brand-peach/40 bg-brand-cream/50 px-3 py-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={enhance}
@@ -368,10 +398,10 @@ export default function VisualizePage() {
                   <span className="block text-sm font-medium text-brand-brown">Enhance photo presentation</span>
                   <span className="block text-xs text-brand-brown/50">
                     Brightens lighting and cleans up the sky and lawn for a marketing-ready shot.
-                    Leave off for an exact like-for-like preview of the customer&apos;s home.
+                    Leave off to preserve the original setting as closely as possible.
                   </span>
                 </span>
-              </label>
+              </label>}
 
               {/* Usage indicator */}
               {usage && (
@@ -387,12 +417,13 @@ export default function VisualizePage() {
                 </div>
               )}
 
+              {usage && !usage.allowed && <Link href="/settings/billing" className="block text-sm font-semibold text-brand-orange hover:underline">View plan and usage options →</Link>}
               {/* Visualize button */}
               <Button
                 size="lg"
                 className="w-full h-14 text-lg"
                 onClick={handleVisualize}
-                disabled={!selectedProductId || (usage !== null && !usage.allowed)}
+                disabled={uploading || generating || !originalImagePath || !selectedProductId || (usage !== null && !usage.allowed)}
               >
                 <Sparkles className="mr-2 h-5 w-5" />
                 {usage && !usage.allowed
@@ -413,7 +444,7 @@ export default function VisualizePage() {
           </div>
           <h2 className="text-xl font-semibold mb-2">Generating Your Visualization</h2>
           <p className="text-brand-brown/50 text-center max-w-md">
-            Our AI is replacing the roof in your photo. This usually takes 15-25 seconds.
+            Our AI is replacing the roof in your photo. This may take up to a minute. Your result will be saved to the gallery.
           </p>
         </div>
       )}
@@ -424,6 +455,7 @@ export default function VisualizePage() {
           {/* Current product label */}
           <div className="flex items-center gap-3 px-1">
             <ProductSwatch
+              category={activeResult.product.category}
               brand={activeResult.product.brand}
               line={extractLine(activeResult.product)}
               color={activeResult.product.color}
@@ -465,6 +497,7 @@ export default function VisualizePage() {
                     }`}
                   >
                     <ProductSwatch
+                      category={r.product.category}
                       brand={r.product.brand}
                       line={extractLine(r.product)}
                       color={r.product.color}
@@ -487,6 +520,7 @@ export default function VisualizePage() {
             </div>
           )}
 
+          <p className="text-xs text-brand-brown/60">AI-generated concept. Colors, proportions, and details may vary. Confirm specifications with your contractor before ordering.</p>
           {/* Action buttons */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Button variant="outline" onClick={handleTryAnother} className="h-12">

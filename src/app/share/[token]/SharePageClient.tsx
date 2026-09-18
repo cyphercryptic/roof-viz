@@ -57,13 +57,13 @@ export function SharePageClient({
             <span className="font-bold text-brand-brown">{companyName}</span>
           </div>
           {!(whiteLabel && hidePoweredBy) && (
-            <span className="text-xs text-brand-brown/40">Powered by RoofViz</span>
+            <span className="text-xs text-brand-brown/40">Powered by ExteriorViz</span>
           )}
         </div>
       </header>
 
       {/* Content */}
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+      <main id="main-content" className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {customerName && (
           <p className="text-sm text-brand-brown/50">Visualization for {customerName}</p>
         )}
@@ -79,8 +79,8 @@ export function SharePageClient({
           </div>
         </div>
 
-        <p className="text-center text-xs text-brand-brown/30 pt-4">
-          Drag the slider to compare before & after
+        <p className="text-center text-sm text-brand-brown/70 pt-4">
+          AI concept preview. Colors, scale and details may vary. Confirm final specifications with your contractor.
         </p>
       </main>
     </div>

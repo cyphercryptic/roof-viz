@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/types';
 import type { User } from '@supabase/supabase-js';
 
 export function useUser() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,8 +21,11 @@ export function useUser() {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
-      if (mounted) setProfile(data);
+        .maybeSingle();
+      if (mounted) {
+        setProfile(data);
+        if (!data) router.replace('/onboarding');
+      }
     }
 
     // Initial fetch
@@ -55,7 +60,7 @@ export function useUser() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   return { user, profile, loading, supabase: createClient() };
 }

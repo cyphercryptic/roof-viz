@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, House } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -17,147 +17,77 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   async function handleForgotPassword() {
-    if (!email) {
-      setError('Please enter your email address first');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter your email address above to receive a password reset link.');
       return;
     }
     setResetLoading(true);
+    setResetSent(false);
     setError('');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) {
-      setError(error.message);
-    } else {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      if (error) throw error;
       setResetSent(true);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not send the reset link. Please try again.');
+    } finally {
+      setResetLoading(false);
     }
-    setResetLoading(false);
   }
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
     setLoading(true);
     setError('');
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      setError(error.message);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+      router.push('/onboarding');
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not sign in. Check your connection and try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push('/visualize');
-    router.refresh();
   }
 
   return (
-    <div className="min-h-screen flex bg-brand-cream">
-      {/* Left decorative panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-brand-brown relative overflow-hidden items-center justify-center">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 -left-10 w-80 h-80 rounded-full bg-brand-orange" />
-          <div className="absolute bottom-20 -right-20 w-96 h-96 rounded-full bg-brand-peach" />
+    <main id="main-content" className="min-h-screen bg-brand-cream lg:grid lg:grid-cols-2">
+      <aside className="hidden flex-col justify-between bg-brand-brown p-12 text-white lg:flex xl:p-16" aria-label="About ExteriorViz">
+        <Link href="/" className="inline-flex w-fit items-center gap-3 rounded-md text-xl font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"><House className="size-6" aria-hidden="true" /> ExteriorViz</Link>
+        <div className="max-w-md py-16">
+          <p className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">A clearer picture of every possibility.</p>
+          <p className="mt-6 text-lg leading-relaxed text-slate-200">Explore roofing, windows, and doors on a homeowner&apos;s own photo. Keep your products, previews, and team in one workspace.</p>
         </div>
-        <div className="relative z-10 max-w-md px-12">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange mb-8 shadow-2xl shadow-brand-orange/30">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
-            Show them their <span className="text-brand-orange">new roof</span> before the first shingle is laid.
-          </h1>
-          <p className="text-white/60 text-lg leading-relaxed">
-            AI-powered roof visualization that turns your sales pitch into an unforgettable experience.
-          </p>
-        </div>
-      </div>
-
-      {/* Right login form */}
-      <div className="flex flex-1 items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-10 justify-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-orange">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-            </div>
-            <span className="text-2xl font-bold text-brand-brown">RoofViz</span>
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-brand-brown">Welcome back</h2>
-            <p className="text-brand-brown/50 mt-1">Sign in to your account</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-brand-brown/70 text-sm font-medium">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-11 bg-white border-brand-peach/40 focus:border-brand-orange focus:ring-brand-orange/20"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-brand-brown/70 text-sm font-medium">Password</Label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  disabled={resetLoading}
-                  className="text-xs text-brand-orange hover:text-brand-orange-dark font-medium transition-colors"
-                >
-                  {resetLoading ? 'Sending...' : 'Forgot password?'}
-                </button>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-11 bg-white border-brand-peach/40 focus:border-brand-orange focus:ring-brand-orange/20"
-              />
-            </div>
-            {resetSent && (
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3">
-                <p className="text-sm text-green-700">Password reset link sent! Check your email.</p>
-              </div>
-            )}
-            {error && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-            <Button
-              type="submit"
-              className="w-full h-11 bg-brand-orange hover:bg-brand-orange-dark text-white font-semibold shadow-lg shadow-brand-orange/20 transition-all"
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
+        <p className="text-sm text-slate-300">Built for the conversation at the kitchen table.</p>
+      </aside>
+      <div className="flex min-h-screen flex-col px-6 py-8 sm:px-12">
+        <Link href="/" className="inline-flex w-fit items-center gap-2 rounded-md text-sm text-brand-brown-soft hover:text-brand-brown focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-orange"><ArrowLeft className="size-4" aria-hidden="true" /> Back to ExteriorViz</Link>
+        <div className="m-auto w-full max-w-sm py-12">
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-brown">Welcome back</h1>
+          <p className="mt-3 mb-8 leading-relaxed text-brand-brown-soft">Sign in to your ExteriorViz workspace.</p>
+          {searchParams.get('error') === 'confirmation' && <p role="alert" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">That email link could not be verified. Try the latest link in your inbox, or use Forgot password to regain access.</p>}
+          <form onSubmit={handleLogin} className="space-y-5" aria-busy={loading || resetLoading}>
+            <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" name="email" type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-12 bg-white" /></div>
+            <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required className="h-12 bg-white" /></div>
+            <button type="button" onClick={handleForgotPassword} disabled={resetLoading || loading} className="rounded-md text-sm font-medium text-brand-orange underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-orange disabled:opacity-60">{resetLoading ? 'Sending reset link…' : 'Forgot password?'}</button>
+            {resetSent && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">If an account exists for that address, you&apos;ll receive a password reset email. Check your inbox and spam folder.</p>}
+            {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+            <Button type="submit" disabled={loading || resetLoading} className="h-12 w-full bg-brand-orange font-semibold text-white hover:bg-brand-orange-dark">{loading ? 'Signing in…' : 'Sign in'}</Button>
           </form>
-
-          <p className="mt-8 text-center text-sm text-brand-brown/40">
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-brand-orange font-medium hover:text-brand-orange-dark transition-colors">
-              Sign up your company
-            </Link>
-          </p>
+          <p className="mt-8 text-sm text-brand-brown-soft">New to ExteriorViz? <Link href="/signup" className="font-semibold text-brand-orange underline-offset-4 hover:underline">Create your workspace</Link></p>
         </div>
       </div>
-    </div>
+    </main>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense fallback={<main id="main-content" className="flex min-h-screen items-center justify-center bg-brand-cream"><p role="status">Loading sign in…</p></main>}><LoginForm /></Suspense>;
 }

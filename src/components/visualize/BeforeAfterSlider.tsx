@@ -38,7 +38,7 @@ export function BeforeAfterSlider({ beforeUrl, afterUrl }: BeforeAfterSliderProp
         itemTwo={
           <ReactCompareSliderImage
             src={afterUrl}
-            alt="House with new roof"
+            alt="Home with the selected product visualized"
             style={{ objectFit: 'cover' }}
           />
         }

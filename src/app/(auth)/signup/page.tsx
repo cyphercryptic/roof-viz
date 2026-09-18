@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, House } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -23,156 +25,60 @@ export default function SignupPage() {
     setLoading(true);
     setError('');
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setError(authError.message);
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: { company_name: companyName.trim(), full_name: fullName.trim() },
+        },
+      });
+      if (authError) throw authError;
+      if (!authData.session) {
+        setConfirmationSent(true);
+        return;
+      }
+      router.push('/onboarding');
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not create your account. Please try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (!authData.user) {
-      setError('Failed to create account');
-      setLoading(false);
-      return;
-    }
-
-    const res = await fetch('/api/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: authData.user.id,
-        companyName,
-        fullName,
-      }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || 'Failed to set up company');
-      setLoading(false);
-      return;
-    }
-
-    router.push('/visualize');
-    router.refresh();
   }
 
   return (
-    <div className="min-h-screen flex bg-brand-cream">
-      {/* Left decorative panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-brand-brown relative overflow-hidden items-center justify-center">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 -left-10 w-80 h-80 rounded-full bg-brand-orange" />
-          <div className="absolute bottom-20 -right-20 w-96 h-96 rounded-full bg-brand-peach" />
+    <main id="main-content" className="min-h-screen bg-brand-cream lg:grid lg:grid-cols-2">
+      <aside className="hidden flex-col justify-between bg-brand-brown p-12 text-white lg:flex xl:p-16" aria-label="About ExteriorViz">
+        <Link href="/" className="inline-flex w-fit items-center gap-3 rounded-md text-xl font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"><House className="size-6" aria-hidden="true" /> ExteriorViz</Link>
+        <div className="max-w-md py-16">
+          <p className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">Help homeowners see what comes next.</p>
+          <p className="mt-6 text-lg leading-relaxed text-slate-200">Bring roofing, window, and door options into the same conversation. Create a workspace for your products, previews, and team.</p>
         </div>
-        <div className="relative z-10 max-w-md px-12">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-orange mb-8 shadow-2xl shadow-brand-orange/30">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-4 leading-tight">
-            Close more deals with <span className="text-brand-orange">visual proof</span>.
-          </h1>
-          <p className="text-white/60 text-lg leading-relaxed">
-            Your sales reps show homeowners exactly what their new roof will look like. No more guessing, no more imagination required.
-          </p>
-        </div>
-      </div>
-
-      {/* Right signup form */}
-      <div className="flex flex-1 items-center justify-center px-4">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-3 mb-10 justify-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-orange">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-            </div>
-            <span className="text-2xl font-bold text-brand-brown">RoofViz</span>
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-brand-brown">Create your account</h2>
-            <p className="text-brand-brown/50 mt-1">Sign up your roofing company</p>
-          </div>
-
-          <form onSubmit={handleSignup} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="companyName" className="text-brand-brown/70 text-sm font-medium">Company Name</Label>
-              <Input
-                id="companyName"
-                placeholder="Acme Roofing LLC"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                required
-                className="h-11 bg-white border-brand-peach/40 focus:border-brand-orange"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-brand-brown/70 text-sm font-medium">Your Name</Label>
-              <Input
-                id="fullName"
-                placeholder="John Smith"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                className="h-11 bg-white border-brand-peach/40 focus:border-brand-orange"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-brand-brown/70 text-sm font-medium">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="john@acmeroofing.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="h-11 bg-white border-brand-peach/40 focus:border-brand-orange"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-brand-brown/70 text-sm font-medium">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="At least 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="h-11 bg-white border-brand-peach/40 focus:border-brand-orange"
-              />
-            </div>
-            {error && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-            <Button
-              type="submit"
-              className="w-full h-11 bg-brand-orange hover:bg-brand-orange-dark text-white font-semibold shadow-lg shadow-brand-orange/20 transition-all"
-              disabled={loading}
-            >
-              {loading ? 'Creating account...' : 'Create Account'}
-            </Button>
-          </form>
-
-          <p className="mt-8 text-center text-sm text-brand-brown/40">
-            Already have an account?{' '}
-            <Link href="/login" className="text-brand-orange font-medium hover:text-brand-orange-dark transition-colors">
-              Sign in
-            </Link>
-          </p>
+        <p className="text-sm text-slate-300">One home. More possibilities.</p>
+      </aside>
+      <div className="flex min-h-screen flex-col px-6 py-8 sm:px-12">
+        <Link href="/" className="inline-flex w-fit items-center gap-2 rounded-md text-sm text-brand-brown-soft hover:text-brand-brown focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-orange"><ArrowLeft className="size-4" aria-hidden="true" /> Back to ExteriorViz</Link>
+        <div className="m-auto w-full max-w-sm py-10">
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-brown">Create your account</h1>
+          <p className="mt-3 mb-7 leading-relaxed text-brand-brown-soft">Start your company&apos;s ExteriorViz workspace.</p>
+          {confirmationSent ? <div role="status" className="space-y-3 rounded-lg border border-brand-peach bg-white p-6">
+            <h2 className="font-semibold text-brand-brown">Check your email</h2>
+            <p className="text-sm leading-relaxed text-brand-brown-soft">We sent a confirmation link to {email}. Open it to verify your address, then finish setting up your company. Check your spam folder if you don&apos;t see it.</p>
+            <Link href="/login" className="inline-block font-medium text-brand-orange underline-offset-4 hover:underline">Continue to sign in</Link>
+          </div> : <form onSubmit={handleSignup} className="space-y-4" aria-busy={loading}>
+            <div className="space-y-2"><Label htmlFor="companyName">Company name</Label><Input id="companyName" name="companyName" autoComplete="organization" placeholder="Your company" value={companyName} onChange={(event) => setCompanyName(event.target.value)} required maxLength={100} className="h-12 bg-white" /></div>
+            <div className="space-y-2"><Label htmlFor="fullName">Your name</Label><Input id="fullName" name="fullName" autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={100} className="h-12 bg-white" /></div>
+            <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" name="email" type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-12 bg-white" /></div>
+            <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" name="password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} aria-describedby="password-help" className="h-12 bg-white" /><p id="password-help" className="text-sm text-brand-brown-soft">At least 8 characters.</p></div>
+            {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+            <Button type="submit" disabled={loading} className="h-12 w-full bg-brand-orange font-semibold text-white hover:bg-brand-orange-dark">{loading ? 'Creating account…' : 'Create account'}</Button>
+          </form>}
+          <p className="mt-5 text-xs leading-relaxed text-brand-brown-soft">By creating an account, you agree to our <Link className="underline" href="/terms">Terms of Service</Link> and acknowledge our <Link className="underline" href="/privacy">Privacy Policy</Link>.</p>
+          <p className="mt-7 text-sm text-brand-brown-soft">Already have an account? <Link href="/login" className="font-semibold text-brand-orange underline-offset-4 hover:underline">Sign in</Link></p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

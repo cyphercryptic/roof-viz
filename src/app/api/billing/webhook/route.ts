@@ -3,217 +3,96 @@ import { stripe, PLANS, type PlanKey } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type Stripe from 'stripe';
 
-/** Extract billing period from the first subscription item */
-function getPeriod(sub: Stripe.Subscription) {
-  const item = sub.items.data[0];
-  if (!item) return { start: null, end: null };
-  return {
-    start: new Date(item.current_period_start * 1000).toISOString(),
-    end: new Date(item.current_period_end * 1000).toISOString(),
-  };
-}
-
-/** Map a Stripe subscription status onto the values allowed by the DB CHECK constraint. */
-function mapStatus(stripeStatus: Stripe.Subscription.Status): string {
-  switch (stripeStatus) {
+function mapStatus(status: Stripe.Subscription.Status): string {
+  switch (status) {
     case 'active':
     case 'trialing':
     case 'past_due':
     case 'canceled':
-    case 'incomplete':
-      return stripeStatus;
+    case 'incomplete': return status;
     case 'unpaid':
-    case 'paused':
-      return 'past_due';
-    case 'incomplete_expired':
-      return 'canceled';
-    default:
-      return 'active';
+    case 'paused': return 'past_due';
+    case 'incomplete_expired': return 'canceled';
+    default: return 'incomplete';
   }
 }
 
-/** Extract subscription ID from an invoice (Stripe v21 structure) */
-function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
-  const subDetails = invoice.parent?.subscription_details;
-  if (subDetails?.subscription) {
-    return typeof subDetails.subscription === 'string'
-      ? subDetails.subscription
-      : subDetails.subscription.id;
-  }
-  return null;
+function objectId(value: string | { id: string } | null | undefined): string | null {
+  return typeof value === 'string' ? value : value?.id ?? null;
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.text();
-  const signature = request.headers.get('stripe-signature')!;
-
+  const signature = request.headers.get('stripe-signature');
+  if (!signature) return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
+    event = stripe.webhooks.constructEvent(await request.text(), signature, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  const adminSupabase = createAdminClient();
-
-  // Idempotency: Stripe retries deliveries, and replaying a subscription event
-  // re-runs DB writes with stale data. Claim the event id first; a unique-violation
-  // means it was already processed. Any other failure (e.g. migration 018 not yet
-  // applied) degrades to best-effort rather than dropping the event.
-  const { error: claimError } = await adminSupabase
-    .from('stripe_webhook_events')
-    .insert({ id: event.id });
-
-  if (claimError) {
-    if (claimError.code === '23505') {
-      return NextResponse.json({ received: true, duplicate: true });
-    }
-    console.error('Webhook idempotency claim failed (processing anyway):', claimError.message);
-  }
-
+  let subscriptionId: string | null = null;
+  let tenantId: string | null = null;
   switch (event.type) {
-    case 'checkout.session.completed': {
+    case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded': {
       const session = event.data.object;
-      const tenantId = session.metadata?.tenant_id;
-      const plan = session.metadata?.plan as PlanKey;
-
-      if (!tenantId || !plan) break;
-
-      const subscriptionId = session.subscription as string;
-      const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
-      const period = getPeriod(stripeSub);
-
-      await adminSupabase
-        .from('subscriptions')
-        .update({
-          stripe_subscription_id: subscriptionId,
-          stripe_customer_id: session.customer as string,
-          plan,
-          status: 'active',
-          visualization_limit: PLANS[plan].visualizationLimit,
-          current_period_start: period.start,
-          current_period_end: period.end,
-        })
-        .eq('tenant_id', tenantId);
-
+      if (session.mode !== 'subscription') return NextResponse.json({ received: true });
+      subscriptionId = objectId(session.subscription);
+      tenantId = session.metadata?.tenant_id ?? null;
+      // The subscription's actual status below determines access, including
+      // asynchronous payments and trialing subscriptions without a charge.
       break;
     }
-
-    case 'invoice.paid': {
-      const invoice = event.data.object;
-      const subscriptionId = getInvoiceSubscriptionId(invoice);
-      if (!subscriptionId) break;
-
-      const stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
-      const period = getPeriod(stripeSub);
-      const customerId = invoice.customer as string;
-
-      const { data: sub } = await adminSupabase
-        .from('subscriptions')
-        .select('tenant_id')
-        .eq('stripe_customer_id', customerId)
-        .single();
-
-      if (sub) {
-        await adminSupabase
-          .from('subscriptions')
-          .update({
-            status: 'active',
-            current_period_start: period.start,
-            current_period_end: period.end,
-          })
-          .eq('tenant_id', sub.tenant_id);
-      }
-
+    case 'invoice.paid':
+    case 'invoice.payment_failed':
+      subscriptionId = objectId(event.data.object.parent?.subscription_details?.subscription);
       break;
-    }
-
-    case 'invoice.payment_failed': {
-      const invoice = event.data.object;
-      const customerId = invoice.customer as string;
-
-      await adminSupabase
-        .from('subscriptions')
-        .update({ status: 'past_due' })
-        .eq('stripe_customer_id', customerId);
-
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted':
+      subscriptionId = event.data.object.id;
       break;
-    }
-
-    case 'customer.subscription.updated': {
-      const subscription = event.data.object;
-      const customerId = subscription.customer as string;
-      const period = getPeriod(subscription);
-
-      // Reflect Stripe's actual status. A subscription scheduled to cancel
-      // (cancel_at_period_end) stays active until it actually ends — we downgrade
-      // to free only on customer.subscription.deleted — so a paying customer keeps
-      // their features for the period they've paid for, and a past_due/unpaid state
-      // is no longer overwritten back to active.
-      const status = mapStatus(subscription.status);
-
-      // Try to detect plan changes (e.g. upgrades/downgrades from Stripe portal)
-      // by matching the active price ID against PLANS config.
-      const priceId = subscription.items.data[0]?.price?.id;
-      let matchedPlan: PlanKey | null = null;
-      if (priceId) {
-        for (const [key, config] of Object.entries(PLANS)) {
-          if (config.stripePriceId && config.stripePriceId === priceId) {
-            matchedPlan = key as PlanKey;
-            break;
-          }
-        }
-      }
-
-      const updatePayload: {
-        status: string;
-        current_period_start: string | null;
-        current_period_end: string | null;
-        plan?: PlanKey;
-        visualization_limit?: number;
-      } = {
-        status,
-        current_period_start: period.start,
-        current_period_end: period.end,
-      };
-
-      if (matchedPlan) {
-        updatePayload.plan = matchedPlan;
-        updatePayload.visualization_limit = PLANS[matchedPlan].visualizationLimit;
-      }
-
-      await adminSupabase
-        .from('subscriptions')
-        .update(updatePayload)
-        .eq('stripe_customer_id', customerId);
-
-      break;
-    }
-
-    case 'customer.subscription.deleted': {
-      const subscription = event.data.object;
-      const customerId = subscription.customer as string;
-
-      // Downgrade to free
-      await adminSupabase
-        .from('subscriptions')
-        .update({
-          plan: 'free',
-          status: 'active',
-          visualization_limit: PLANS.free.visualizationLimit,
-          stripe_subscription_id: null,
-          current_period_start: null,
-          current_period_end: null,
-        })
-        .eq('stripe_customer_id', customerId);
-
-      break;
-    }
+    default:
+      return NextResponse.json({ received: true });
   }
+  if (!subscriptionId) return NextResponse.json({ received: true });
 
-  return NextResponse.json({ received: true });
+  try {
+    // Read current Stripe state, rather than treating an old invoice or checkout
+    // delivery as proof that a subscription is still paid and active.
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const customerId = objectId(subscription.customer);
+    const item = subscription.items.data[0];
+    const deleted = subscription.status === 'canceled' || subscription.status === 'incomplete_expired';
+    const matchedPlan = Object.entries(PLANS).find(([, plan]) =>
+      plan.stripePriceId && plan.stripePriceId === item?.price.id,
+    )?.[0] as PlanKey | undefined;
+    if (!customerId || (!deleted && !matchedPlan)) {
+      throw new Error('Stripe subscription has no configured customer or price mapping');
+    }
+
+    // SQL commits the entitlement update and processed-event marker atomically.
+    // A failed request leaves no marker, so Stripe's retry can complete the work.
+    // It also serializes by customer, rejects older events, and ignores events
+    // from subscriptions other than the tenant's current subscription.
+    const { data, error } = await createAdminClient().rpc('apply_stripe_subscription_event', {
+      p_event_id: event.id,
+      p_created: event.created,
+      p_customer_id: customerId,
+      p_subscription_id: subscription.id,
+      p_tenant_id: tenantId,
+      p_plan: deleted ? 'free' : matchedPlan!,
+      p_status: mapStatus(subscription.status),
+      p_limit: deleted ? PLANS.free.visualizationLimit : PLANS[matchedPlan!].visualizationLimit,
+      p_period_start: item ? new Date(item.current_period_start * 1000).toISOString() : null,
+      p_period_end: item ? new Date(item.current_period_end * 1000).toISOString() : null,
+      p_deleted: deleted,
+    });
+    if (error) throw new Error(`Subscription reconciliation failed: ${error.message}`);
+    return NextResponse.json({ received: true, result: data });
+  } catch (error) {
+    console.error('Stripe webhook processing failed:', error);
+    return NextResponse.json({ error: 'Billing update failed; delivery can be retried.' }, { status: 500 });
+  }
 }

@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { canShare } from '@/lib/plan-features';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { shareSchema, parseBody } from '@/lib/validation';
+import { hasGenerationAccess, isTenantMediaPath } from '@/lib/security-policy';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -38,23 +39,25 @@ export async function POST(request: NextRequest) {
 
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('plan')
+    .select('plan, status, current_period_end')
     .eq('tenant_id', profile.tenant_id)
     .single();
 
-  if (!canShare(subscription?.plan)) {
+  if (!subscription || !hasGenerationAccess(subscription) || !canShare(subscription.plan)) {
     return NextResponse.json({ error: 'Gallery sharing requires a Pro plan or higher' }, { status: 403 });
   }
 
   // Verify visualization belongs to this tenant (defense-in-depth)
   const { data: viz } = await supabase
     .from('visualizations')
-    .select('id')
+    .select('id, status, original_image_path, result_image_path')
     .eq('id', visualization_id)
     .eq('tenant_id', profile.tenant_id)
     .single();
 
-  if (!viz) {
+  if (!viz || viz.status !== 'completed'
+    || !isTenantMediaPath(viz.original_image_path, profile.tenant_id)
+    || !isTenantMediaPath(viz.result_image_path, profile.tenant_id)) {
     return NextResponse.json({ error: 'Visualization not found' }, { status: 404 });
   }
 
@@ -63,9 +66,12 @@ export async function POST(request: NextRequest) {
   const { data: existing } = await supabase
     .from('shared_links')
     .select('token')
+    .eq('tenant_id', profile.tenant_id)
     .eq('visualization_id', visualization_id)
     .eq('is_active', true)
     .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (existing) {

@@ -1,10 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import type { ProductCategory } from '@/types';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const MAX_ATTEMPTS = 3;
-// Per-attempt ceiling. Kept well under the route's maxDuration (120s) so all attempts
-// plus backoff finish before Vercel kills the function and strands the DB row.
+// Roofing retains its 30s attempt ceiling. Opening edits use 60s below;
+// three attempts plus backoff fit inside the route's 240s ceiling.
 const PER_ATTEMPT_TIMEOUT_MS = 30_000;
 
 // finishReasons that mean "the model refused" — retrying with the same input won't help.
@@ -44,31 +45,54 @@ export interface RoofVisualizationInput {
   prompt: string;
 }
 
-export async function generateRoofVisualization({
-  houseImage,
-  swatchImage,
-  prompt,
-}: RoofVisualizationInput): Promise<Buffer> {
+export async function generateRoofVisualization(input: RoofVisualizationInput): Promise<Buffer> {
+  return generateProductVisualization({
+    houseImage: input.houseImage,
+    referenceImage: input.swatchImage,
+    prompt: input.prompt,
+    category: 'roofing',
+  });
+}
+
+export interface ProductVisualizationInput {
+  houseImage: Buffer;
+  referenceImage?: Buffer | null;
+  prompt: string;
+  category: ProductCategory;
+}
+
+export async function generateProductVisualization({
+  houseImage, referenceImage, prompt, category,
+}: ProductVisualizationInput): Promise<Buffer> {
+  const roofing = category === 'roofing';
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash-image',
+    model: roofing
+      ? process.env.GEMINI_ROOF_MODEL || 'gemini-2.5-flash-image'
+      : process.env.GEMINI_OPENING_MODEL || 'gemini-3.1-flash-image-preview',
     generationConfig: {
       // @ts-expect-error - responseModalities is supported but not in types yet
       responseModalities: ['TEXT', 'IMAGE'],
     },
   });
-
+  const target = category === 'window' ? 'window' : category === 'entry_door' ? 'entry door' : 'patio door';
   const parts = [
     toImagePart(houseImage),
-    ...(swatchImage ? [toImagePart(swatchImage)] : []),
+    ...(referenceImage ? [
+      { text: roofing
+        ? 'The next image is the exact roof product swatch. Match its color and texture.'
+        : `The next image is a ${target} style reference only. Match the style, shape and proportions; ignore reference colors. Edit only the ${target} in the FIRST source photo, using the color specified in the instructions.` },
+      toImagePart(referenceImage),
+    ] : []),
     { text: prompt },
   ];
+  const timeoutMs = roofing ? PER_ATTEMPT_TIMEOUT_MS : 60_000;
 
   let lastError: Error = new Error('Image generation failed');
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const response = await model.generateContent(parts, {
-        signal: AbortSignal.timeout(PER_ATTEMPT_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const candidate = response.response.candidates?.[0];
 
@@ -105,4 +129,39 @@ export async function generateRoofVisualization({
   }
 
   throw lastError;
+}
+
+/** Only fetch curated product assets; do not turn catalog URLs into a server-side proxy. */
+export async function fetchProductReference(url: string, allowedUrls: ReadonlySet<string>): Promise<Buffer | null> {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+    const storageOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin : null;
+    const isProductSwatch = parsed.origin === storageOrigin &&
+      parsed.pathname.startsWith('/storage/v1/object/public/product-swatches/');
+    if (!allowedUrls.has(url) && !isProductSwatch) return null;
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: 'error' });
+    if (!response.ok || !/^image\/(png|jpeg|webp)(;|$)/i.test(response.headers.get('content-type') || '')) return null;
+    const maxBytes = 5 * 1024 * 1024;
+    if (Number(response.headers.get('content-length')) > maxBytes) return null;
+    const reader = response.body?.getReader();
+    if (!reader) return null;
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+    return size ? Buffer.concat(chunks) : null;
+  } catch {
+    // A missing manufacturer image must not block the text-guided render.
+    return null;
+  }
 }

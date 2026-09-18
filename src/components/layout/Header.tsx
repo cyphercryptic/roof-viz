@@ -1,170 +1,57 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { Image, FolderOpen, Package, Users, Settings, Menu, LogOut, BarChart3, Palette, CreditCard } from 'lucide-react';
-import type { Profile } from '@/types';
 import { useState } from 'react';
+import { House, Menu, X, LogOut, Settings } from 'lucide-react';
+import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { workspaceNavigation, managementNavigation, isNavigationActive } from './navigation';
+import { cn } from '@/lib/utils';
+import type { Profile } from '@/types';
 
-interface HeaderProps {
-  profile: Profile | null;
-}
-
-const navItems = [
-  { href: '/visualize', label: 'Visualize', icon: Image },
-  { href: '/gallery', label: 'Gallery', icon: FolderOpen },
-];
-
-const adminItems = [
-  { href: '/catalog', label: 'Catalog', icon: Package },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/settings/team', label: 'Team', icon: Users },
-  { href: '/settings/branding', label: 'Branding', icon: Palette },
-  { href: '/settings/billing', label: 'Billing', icon: CreditCard },
-  { href: '/settings', label: 'Settings', icon: Settings },
-];
-
-export function Header({ profile }: HeaderProps) {
+export function Header({ profile }: { profile: Profile | null }) {
   const router = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
-  const isDemo = profile?.role === 'demo';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
+  const navigation = [...workspaceNavigation, ...(isAdmin ? managementNavigation : [])];
+  const currentPage = navigation.find((item) => isNavigationActive(pathname, item.href));
+  const initials = profile?.full_name.split(' ').map((name) => name[0]).join('').slice(0, 2).toUpperCase() || 'EV';
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    setSigningOut(true);
+    try {
+      const { error } = await createClient().auth.signOut();
+      if (error) throw error;
+      router.replace('/login');
+      router.refresh();
+    } catch {
+      toast.error('Could not sign out. Please try again.');
+    } finally { setSigningOut(false); }
   }
 
-  const initials = profile?.full_name
-    ?.split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || '??';
-
-  return (
-    <header className="border-b border-brand-peach/30 bg-white">
-      <div className="flex h-14 items-center justify-between px-4 md:px-6">
-        {/* Mobile logo + menu */}
-        <div className="flex items-center gap-3 md:hidden">
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg hover:bg-brand-peach-light text-brand-brown transition-colors"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-orange">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-            </div>
-            <span className="font-bold text-brand-brown">RoofViz</span>
-          </div>
-        </div>
-
-        {/* Desktop: breadcrumb area */}
-        <div className="hidden md:block">
-          <p className="text-sm text-brand-brown/50">
-            {pathname.startsWith('/visualize') && 'Roof Visualization'}
-            {pathname.startsWith('/gallery') && 'Visualization Gallery'}
-            {pathname.startsWith('/catalog') && 'Product Catalog'}
-            {pathname.startsWith('/analytics') && 'Analytics Dashboard'}
-            {pathname.startsWith('/settings/team') && 'Team Management'}
-            {pathname.startsWith('/settings/billing') && 'Billing & Usage'}
-            {pathname.startsWith('/settings/branding') && 'Brand Settings'}
-            {pathname === '/settings' && 'Company Settings'}
-          </p>
-        </div>
-
-        {/* User menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 hover:bg-brand-peach-light transition-colors" />
-            }
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-orange text-white text-xs font-bold">
-              {initials}
-            </div>
-            <span className="hidden sm:inline text-sm font-medium text-brand-brown">
-              {profile?.full_name}
-            </span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-xs text-brand-brown/40" disabled>
-              {profile?.role === 'owner' ? 'Owner' : profile?.role === 'admin' ? 'Admin' : profile?.role === 'demo' ? 'Demo User' : 'Sales Rep'}
-            </DropdownMenuItem>
-            {isAdmin && (
-              <DropdownMenuItem onClick={() => router.push('/settings')}>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+  return <header onKeyDown={(event) => { if (event.key === 'Escape') { setMobileMenuOpen(false); } }} className="border-b border-border bg-white">
+    <div className="flex h-20 items-center justify-between gap-3 px-4 md:px-8">
+      <div className="flex min-w-0 items-center gap-2 md:hidden">
+        <button type="button" aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg p-3 text-brand-brown hover:bg-brand-peach-light">{mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button>
+        <Link href="/" className="flex items-center gap-2 text-base font-semibold"><House className="hidden h-5 w-5 min-[380px]:block" aria-hidden="true" />ExteriorViz</Link>
       </div>
-
-      {/* Mobile navigation */}
-      {mobileMenuOpen && (
-        <nav className="border-t border-brand-peach/30 p-3 md:hidden space-y-1 bg-white">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                pathname.startsWith(item.href)
-                  ? 'bg-brand-orange text-white'
-                  : 'text-brand-brown hover:bg-brand-peach-light'
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.label}
-            </Link>
-          ))}
-          {isAdmin && (
-            <>
-              <div className="my-2 border-t border-brand-peach/30" />
-              {adminItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    pathname.startsWith(item.href)
-                      ? 'bg-brand-orange text-white'
-                      : 'text-brand-brown hover:bg-brand-peach-light'
-                  )}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
-                </Link>
-              ))}
-            </>
-          )}
-        </nav>
-      )}
-    </header>
-  );
+      <p className="hidden text-sm font-medium text-brand-brown-soft md:block">{currentPage?.label || 'Your workspace'}</p>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<button aria-label="Open account menu" className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-brand-peach-light" />}>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-peach-light font-semibold text-brand-brown">{initials}</span>
+          <span className="hidden max-w-44 truncate sm:inline">{profile?.full_name}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem disabled className="capitalize">{profile?.role === 'rep' ? 'Sales representative' : profile?.role || 'Account'}</DropdownMenuItem>
+          {isAdmin && <DropdownMenuItem onClick={() => router.push('/settings')}><Settings className="mr-2 h-4 w-4" />Company settings</DropdownMenuItem>}
+          <DropdownMenuItem disabled={signingOut} onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" />{signingOut ? 'Signing out…' : 'Sign out'}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+    {mobileMenuOpen && <nav id="mobile-navigation" aria-label="Workspace" className="grid gap-1 border-t border-border bg-white p-3 md:hidden">{navigation.map((item) => { const active = isNavigationActive(pathname, item.href); return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} onClick={() => setMobileMenuOpen(false)} className={cn('flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium', active ? 'bg-brand-orange text-white' : 'text-brand-brown hover:bg-brand-peach-light')}><item.icon className="h-5 w-5" aria-hidden="true" />{item.label}</Link>; })}</nav>}
+  </header>;
 }

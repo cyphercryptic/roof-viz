@@ -1,17 +1,9 @@
 import type { Metadata } from "next";
-import { Fraunces, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 
-// Fraunces — variable display serif with optical sizing. Warm, tactile, editorial.
-const fraunces = Fraunces({
-  variable: "--font-display",
-  subsets: ["latin"],
-  display: "swap",
-  axes: ["opsz", "SOFT"],
-});
-
-// DM Sans — refined geometric humanist sans. Pairs well with Fraunces.
+// DM Sans gives the public site and workspace a consistent, readable voice.
 const dmSans = DM_Sans({
   variable: "--font-body",
   subsets: ["latin"],
@@ -19,7 +11,7 @@ const dmSans = DM_Sans({
   display: "swap",
 });
 
-// JetBrains Mono — editorial metadata (labels, section numbers, fine-print).
+// Retained for compact technical values where a monospaced face is useful.
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
@@ -29,24 +21,24 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'RoofViz — AI Roof Visualization for Sales Teams',
-    template: '%s | RoofViz',
+    default: 'ExteriorViz — Roofing, Window & Door Visualization',
+    template: '%s | ExteriorViz',
   },
   description:
-    'Walk in with the after. Snap a home photo, pick a shingle, hand back a photorealistic roof — in under a minute.',
+    'Preview roofing, windows and doors on a real home photo. One workspace for your product catalog, visualizations and customer presentations.',
   metadataBase: new URL(getSiteUrl()),
   openGraph: {
-    title: 'RoofViz — AI Roof Visualization for Sales Teams',
+    title: 'ExteriorViz — Roofing, Window & Door Visualization',
     description:
-      'Walk in with the after. AI-powered photorealistic roof visualization for roofing sales teams.',
-    siteName: 'RoofViz',
+      'Help homeowners explore roofing, window and door options with AI previews of their own home.',
+    siteName: 'ExteriorViz',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'RoofViz — AI Roof Visualization for Sales Teams',
+    title: 'ExteriorViz — Roofing, Window & Door Visualization',
     description:
-      'Walk in with the after. AI-powered photorealistic roof visualization for roofing sales teams.',
+      'Help homeowners explore roofing, window and door options with AI previews of their own home.',
   },
   icons: {
     icon: '/favicon.svg',
@@ -61,9 +53,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:p-3 focus:text-brand-brown">Skip to content</a>
+        {children}
+      </body>
     </html>
   );
 }

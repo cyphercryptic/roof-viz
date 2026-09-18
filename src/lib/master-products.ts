@@ -1,7 +1,10 @@
+import type { ProductCategory, ProductAttributes } from '@/types';
+import { MASTER_PRODUCTS as OPENING_PRODUCTS } from '@/lib/window-products';
+
 // Master product catalog — pre-built database of roofing products
 // Admins select which ones to enable for their company
 
-export interface MasterProduct {
+interface RoofMasterProduct {
   brand: string;
   line: string;
   style: string;
@@ -10,7 +13,7 @@ export interface MasterProduct {
   comingSoon?: boolean;
 }
 
-export const MASTER_PRODUCTS: MasterProduct[] = [
+export const ROOF_PRODUCTS: RoofMasterProduct[] = [
   // ============================================================
   // GAF — Timberline HDZ (Architectural Shingle, most popular)
   // ============================================================
@@ -364,6 +367,26 @@ export const MASTER_PRODUCTS: MasterProduct[] = [
     color,
     description: `Corrugated metal roof panel in ${color}. Classic wavy ribbed profile, lightweight and durable. Cost-effective metal option with excellent water shedding capability and rustic or industrial aesthetic.`,
   })),
+];
+
+// Shared catalog shape keeps roofing style and opening-specific attributes.
+export interface MasterProduct {
+  category: ProductCategory;
+  brand: string;
+  line: string;
+  name: string;
+  style: string;
+  color: string;
+  material?: string;
+  description: string;
+  attributes: ProductAttributes;
+  reference_image_url?: string;
+  comingSoon?: boolean;
+}
+
+export const MASTER_PRODUCTS: MasterProduct[] = [
+  ...ROOF_PRODUCTS.map((product) => ({ ...product, name: `${product.line} - ${product.color}`, category: 'roofing' as const, attributes: {} })),
+  ...OPENING_PRODUCTS.map((product) => ({ ...product, style: '' })),
 ];
 
 // Get unique brands

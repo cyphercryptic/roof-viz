@@ -5,6 +5,12 @@ const resend = new Resend(process.env.RESEND_API_KEY || 'dummy_key_for_build');
 
 const FROM_ADDRESS = EMAIL_FROM;
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]!);
+}
+
 /** Whether outbound email can actually be delivered. Send functions no-op
  * (and return false) when unconfigured so callers can offer a manual fallback
  * instead of implying an email went out. */
@@ -31,12 +37,12 @@ export async function sendInviteEmail({
 }: SendInviteEmailParams): Promise<boolean> {
   if (!isEmailConfigured()) return false;
   try {
-    const roleLabel = role === 'admin' ? 'an admin' : 'a sales rep';
+    const roleLabel = role === 'admin' ? 'an admin' : role === 'demo' ? 'a demo user' : 'a sales rep';
 
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to,
-      subject: `${inviterName} invited you to join ${companyName} on RoofViz`,
+      subject: `${inviterName} invited you to join ${companyName} on ExteriorViz`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -48,7 +54,7 @@ export async function sendInviteEmail({
         <!-- Header -->
         <tr>
           <td style="background-color:#3b2314;padding:32px 40px;text-align:center;">
-            <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Roof<span style="color:#e8632b;">Viz</span></span>
+            <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Exterior<span style="color:#e8632b;">Viz</span></span>
           </td>
         </tr>
         <!-- Body -->
@@ -56,16 +62,16 @@ export async function sendInviteEmail({
           <td style="padding:40px;">
             <h1 style="margin:0 0 16px;font-size:22px;color:#3b2314;">You've been invited!</h1>
             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5c4033;">
-              <strong>${inviterName}</strong> has invited you to join <strong>${companyName}</strong> as ${roleLabel} on RoofViz &mdash; the roof visualization platform that helps roofing companies close more deals.
+              <strong>${escapeHtml(inviterName)}</strong> has invited you to join <strong>${escapeHtml(companyName)}</strong> as ${roleLabel} on ExteriorViz &mdash; the visualization workspace for roofing, windows and doors.
             </p>
             <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
               <tr><td style="background-color:#e8632b;border-radius:8px;padding:14px 32px;text-align:center;">
-                <a href="${inviteUrl}" style="color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;">Accept Invite</a>
+                <a href="${escapeHtml(inviteUrl)}" style="color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;">Accept Invite</a>
               </td></tr>
             </table>
             <p style="margin:0;font-size:13px;color:#9c8578;line-height:1.5;">
               Or copy this link into your browser:<br />
-              <a href="${inviteUrl}" style="color:#e8632b;word-break:break-all;">${inviteUrl}</a>
+              <a href="${escapeHtml(inviteUrl)}" style="color:#e8632b;word-break:break-all;">${escapeHtml(inviteUrl)}</a>
             </p>
           </td>
         </tr>
@@ -73,7 +79,7 @@ export async function sendInviteEmail({
         <tr>
           <td style="padding:24px 40px;border-top:1px solid #f0e6de;text-align:center;">
             <p style="margin:0;font-size:12px;color:#9c8578;">
-              This invite was sent by ${companyName} via RoofViz. If you weren't expecting this, you can safely ignore it.
+              This invite was sent by ${escapeHtml(companyName)} via ExteriorViz. If you weren't expecting this, you can safely ignore it.
             </p>
           </td>
         </tr>
@@ -114,7 +120,7 @@ export async function sendWelcomeEmail({
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to,
-      subject: `Welcome to RoofViz, ${firstName}!`,
+      subject: `Welcome to ExteriorViz, ${firstName}!`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -126,21 +132,21 @@ export async function sendWelcomeEmail({
         <!-- Header -->
         <tr>
           <td style="background-color:#3b2314;padding:32px 40px;text-align:center;">
-            <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Roof<span style="color:#e8632b;">Viz</span></span>
+            <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Exterior<span style="color:#e8632b;">Viz</span></span>
           </td>
         </tr>
         <!-- Body -->
         <tr>
           <td style="padding:40px;">
-            <h1 style="margin:0 0 16px;font-size:22px;color:#3b2314;">Welcome aboard, ${firstName}!</h1>
+            <h1 style="margin:0 0 16px;font-size:22px;color:#3b2314;">Welcome aboard, ${escapeHtml(firstName)}!</h1>
             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#5c4033;">
-              Your account for <strong>${companyName}</strong> is all set. You can now start creating roof visualizations that help homeowners see exactly what their new roof will look like.
+              Your account for <strong>${escapeHtml(companyName)}</strong> is all set. You can now create roofing, window and door concept previews for homeowners.
             </p>
             <h2 style="margin:0 0 12px;font-size:16px;color:#3b2314;">Get started in 3 steps:</h2>
             <ol style="margin:0 0 24px;padding-left:20px;font-size:14px;line-height:1.8;color:#5c4033;">
               <li>Upload a photo of a home</li>
-              <li>Pick a shingle style and color</li>
-              <li>Share the visualization with your customer</li>
+              <li>Choose a roof, window or door product</li>
+              <li>Compare the result with the original photo</li>
             </ol>
             <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
               <tr><td style="background-color:#e8632b;border-radius:8px;padding:14px 32px;text-align:center;">
@@ -156,7 +162,7 @@ export async function sendWelcomeEmail({
         <tr>
           <td style="padding:24px 40px;border-top:1px solid #f0e6de;text-align:center;">
             <p style="margin:0;font-size:12px;color:#9c8578;">
-              You're receiving this because you signed up for RoofViz. &copy; ${new Date().getFullYear()} RoofViz
+              You're receiving this because you signed up for ExteriorViz. &copy; ${new Date().getFullYear()} ExteriorViz
             </p>
           </td>
         </tr>

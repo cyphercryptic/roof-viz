@@ -14,56 +14,29 @@ export async function POST(request: NextRequest) {
   const rateCheck = await checkRateLimit(supabase, ip, '/api/signup', RATE_LIMITS.auth);
   if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = parseBody(signupSchema, body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
   const { companyName, fullName } = parsed.data;
 
-  // Bind the new profile to a VERIFIED identity, not a caller-supplied id
-  // (which would let anyone attach an arbitrary auth user to their tenant).
-  // Preferred proof is the session cookie; with email confirmation enabled
-  // there is no session yet, so fall back to accepting the id only for a
-  // just-created, still-unconfirmed auth user that has no profile.
+  // Only a verified session may provision a company. A caller-supplied user id
+  // is never identity proof, including for recently created unconfirmed accounts.
   const authClient = await createClient();
   const { data: { user: sessionUser } } = await authClient.auth.getUser();
-
-  let userId: string;
-  let userEmail: string | null;
-
-  if (sessionUser) {
-    userId = sessionUser.id;
-    userEmail = sessionUser.email ?? null;
-  } else {
-    const claimed = parsed.data.userId;
-    if (!claimed) {
-      return NextResponse.json(
-        { error: 'Your session could not be verified. Please sign in and try again.' },
-        { status: 401 }
-      );
-    }
-    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(claimed);
-    const ageMs = authUser ? Date.now() - new Date(authUser.created_at).getTime() : Infinity;
-    if (!authUser || authUser.email_confirmed_at || ageMs > 15 * 60 * 1000) {
-      return NextResponse.json(
-        { error: 'Your session could not be verified. Please sign in and try again.' },
-        { status: 401 }
-      );
-    }
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', authUser.id)
-      .maybeSingle();
-    if (existingProfile) {
-      return NextResponse.json(
-        { error: 'This account is already set up. Please sign in.' },
-        { status: 409 }
-      );
-    }
-    userId = authUser.id;
-    userEmail = authUser.email ?? null;
+  if (!sessionUser?.email || !sessionUser.email_confirmed_at) {
+    return NextResponse.json({ error: 'Confirm your email and sign in to finish setup.' }, { status: 401 });
+  }
+  const userId = sessionUser.id;
+  const userEmail = sessionUser.email;
+  const { data: existingProfile, error: existingError } = await supabase
+    .from('profiles').select('tenant_id').eq('id', userId).maybeSingle();
+  if (existingError) {
+    return NextResponse.json({ error: 'Could not check your account. Please try again.' }, { status: 500 });
+  }
+  if (existingProfile) {
+    return NextResponse.json({ tenant: { id: existingProfile.tenant_id } });
   }
 
   // Create slug from company name. Names like "&&&" normalize to empty, and distinct
@@ -110,14 +83,16 @@ export async function POST(request: NextRequest) {
     });
 
   if (profileError) {
-    // A profile may already exist if this is a retry after a partial failure — treat
-    // that as success rather than deleting the tenant out from under the user.
-    if (profileError.code !== '23505') {
-      // Cleanup: delete tenant if profile creation fails
-      await supabase.from('tenants').delete().eq('id', tenant.id);
-      console.error('Profile creation failed during signup:', profileError);
-      return NextResponse.json({ error: 'Could not create your account. Please try again.' }, { status: 500 });
+    // This tenant was created by this request and has no profile; remove only it.
+    // A concurrent successful setup owns a different tenant and is preserved.
+    await supabase.from('tenants').delete().eq('id', tenant.id);
+    if (profileError.code === '23505') {
+      const { data: existing } = await supabase.from('profiles')
+        .select('tenant_id').eq('id', userId).maybeSingle();
+      if (existing) return NextResponse.json({ tenant: { id: existing.tenant_id } });
     }
+    console.error('Profile creation failed during signup:', profileError);
+    return NextResponse.json({ error: 'Could not create your account. Please try again.' }, { status: 500 });
   }
 
   // Send welcome email. Await it so the serverless instance doesn't freeze before the

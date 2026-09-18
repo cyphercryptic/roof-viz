@@ -6,119 +6,67 @@ import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit
 import { inviteSendSchema, parseBody } from '@/lib/validation';
 import { sendInviteEmail } from '@/lib/email';
 import { getSiteUrl } from '@/lib/site';
-import { PLANS } from '@/lib/stripe';
 
 export async function POST(request: NextRequest) {
-  // Authenticate user
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Get profile and verify admin/owner role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('tenant_id, role, full_name')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile) {
-    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-  }
-
-  if (profile.role !== 'admin' && profile.role !== 'owner') {
-    return NextResponse.json({ error: 'Only admins can send invites' }, { status: 403 });
-  }
-
-  // Rate limit
-  const adminSupabase = createAdminClient();
-  const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/invite/send', RATE_LIMITS.general);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
-
-  // Validate body
-  const body = await request.json();
-  const parsed = parseBody(inviteSendSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
-  const { email, role } = parsed.data;
-
-  // Check team member limit
-  const { data: subscription } = await adminSupabase
-    .from('subscriptions')
-    .select('plan')
-    .eq('tenant_id', profile.tenant_id)
-    .single();
-
-  const plan = (subscription?.plan || 'free') as keyof typeof PLANS;
-  const planConfig = PLANS[plan];
-  const teamLimit = planConfig?.teamMemberLimit ?? 1;
-
-  if (teamLimit !== -1) {
-    // Count current team members (profiles) + pending invites
-    const { count: memberCount } = await adminSupabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', profile.tenant_id);
-
-    const { count: pendingInviteCount } = await adminSupabase
-      .from('invites')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', profile.tenant_id)
-      .is('accepted_at', null);
-
-    const totalMembers = (memberCount || 0) + (pendingInviteCount || 0);
-    if (totalMembers >= teamLimit) {
-      return NextResponse.json(
-        { error: `Your ${planConfig.name} plan allows up to ${teamLimit} team member${teamLimit === 1 ? '' : 's'}. Please upgrade to add more.` },
-        { status: 403 }
-      );
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user || !user.email_confirmed_at) {
+      return NextResponse.json({ error: 'Confirm your email and sign in to invite your team.' }, { status: 401 });
     }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles').select('tenant_id, role, full_name').eq('id', user.id).maybeSingle();
+    if (profileError) {
+      return NextResponse.json({ error: 'Unable to verify your account. Please try again.' }, { status: 503 });
+    }
+    if (!profile) return NextResponse.json({ error: 'Finish setting up your company first.' }, { status: 403 });
+    if (profile.role !== 'admin' && profile.role !== 'owner') {
+      return NextResponse.json({ error: 'Only company owners and admins can send invites.' }, { status: 403 });
+    }
+
+    const admin = createAdminClient();
+    const rateCheck = await checkRateLimit(admin, user.id, '/api/invite/send', RATE_LIMITS.general);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+    const parsed = parseBody(inviteSendSchema, await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const email = parsed.data.email.trim().toLowerCase();
+    const { role } = parsed.data;
+
+    // Resolve email context before reserving capacity so a failed read cannot leave
+    // an invitation behind that the caller never receives.
+    const { data: tenant, error: tenantError } = await admin
+      .from('tenants').select('name').eq('id', profile.tenant_id).single();
+    if (tenantError || !tenant) {
+      return NextResponse.json({ error: 'Unable to load your company. Please try again.' }, { status: 503 });
+    }
+
+    const inviteUrlBase = getSiteUrl();
+    const token = crypto.randomBytes(32).toString('hex');
+    const { data: invite, error } = await admin.rpc('create_team_invite', {
+      p_inviter_id: user.id,
+      p_email: email,
+      p_role: role,
+      p_token: token,
+      p_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    // Migration 020 makes this check + reservation atomic under the tenant lock.
+    // Missing RPCs/read errors fail closed; there is no direct-insert fallback.
+    if (error || !invite) {
+      if (error?.code === '23505') return NextResponse.json({ error: 'This person is already a member or has an active invitation.' }, { status: 409 });
+      if (error?.code === 'P0001') return NextResponse.json({ error: 'Your plan has no available team seats. Remove an unused invitation or update your plan.' }, { status: 403 });
+      if (error?.code === '42501') return NextResponse.json({ error: 'Inviting teammates requires an active plan and company admin access.' }, { status: 403 });
+      return NextResponse.json({ error: 'Unable to create this invitation. Please try again.' }, { status: 503 });
+    }
+
+    const inviteUrl = `${inviteUrlBase}/invite/${invite.token}`;
+    // A delivery outage must not hide a valid invitation. Return a copyable link.
+    let emailSent = false;
+    try {
+      emailSent = await sendInviteEmail({ to: email, inviterName: profile.full_name, companyName: tenant.name, role, inviteUrl });
+    } catch { /* The saved invitation is still usable through its link. */ }
+    return NextResponse.json({ invite, inviteUrl, emailSent });
+  } catch {
+    return NextResponse.json({ error: 'Unable to create this invitation. Please try again.' }, { status: 503 });
   }
-
-  // Get tenant name for the email
-  const { data: tenant } = await adminSupabase
-    .from('tenants')
-    .select('name')
-    .eq('id', profile.tenant_id)
-    .single();
-
-  const companyName = tenant?.name || 'your team';
-
-  // Generate token and create invite record
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
-
-  const { data: invite, error: insertError } = await adminSupabase
-    .from('invites')
-    .insert({
-      tenant_id: profile.tenant_id,
-      email,
-      role,
-      token,
-      expires_at: expiresAt,
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
-  }
-
-  // Build invite URL and send email
-  const inviteUrl = `${getSiteUrl()}/invite/${token}`;
-
-  // Await the send so the serverless instance doesn't freeze before it completes.
-  // sendInviteEmail swallows its own errors, so a mail failure won't 500 the request —
-  // it reports emailSent: false and the UI falls back to a copyable link.
-  const emailSent = await sendInviteEmail({
-    to: email,
-    inviterName: profile.full_name,
-    companyName,
-    role,
-    inviteUrl,
-  });
-
-  return NextResponse.json({ invite, inviteUrl, emailSent });
 }

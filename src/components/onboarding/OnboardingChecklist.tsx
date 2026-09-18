@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,33 +14,39 @@ interface OnboardingStatus {
   role: string;
 }
 
-const DISMISSED_KEY = 'roofviz-onboarding-dismissed';
+function subscribeToDismissal(callback: () => void) {
+  window.addEventListener('storage', callback);
+  window.addEventListener('exteriorviz-onboarding', callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener('exteriorviz-onboarding', callback);
+  };
+}
 
-export function OnboardingChecklist() {
+export function OnboardingChecklist({ userId }: { userId: string }) {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
-  const [dismissed, setDismissed] = useState(true); // default hidden until we check
-  const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
+  const dismissedKey = `exteriorviz-onboarding-dismissed:${userId}`;
+  const dismissed = useSyncExternalStore(subscribeToDismissal, () => {
+    try { return localStorage.getItem(dismissedKey) === 'true'; }
+    catch { return false; }
+  }, () => true);
 
   useEffect(() => {
-    const wasDismissed = localStorage.getItem(DISMISSED_KEY) === 'true';
-    setDismissed(wasDismissed);
-    if (wasDismissed) {
-      setLoading(false);
-      return;
-    }
-
-    fetch('/api/onboarding/status')
-      .then((res) => res.json())
+    if (dismissed) return;
+    const controller = new AbortController();
+    fetch('/api/onboarding/status', { signal: controller.signal })
+      .then((response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (data.role === 'owner' || data.role === 'admin') {
-          setStatus(data);
+        if (!controller.signal.aborted) {
+          setStatus(data && (data.role === 'owner' || data.role === 'admin') ? data : null);
         }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => {});
+    return () => controller.abort();
+  }, [dismissed, pathname, userId]);
 
-  if (loading || dismissed || !status) return null;
+  if (dismissed || !status) return null;
 
   const steps = [
     {
@@ -55,7 +62,7 @@ export function OnboardingChecklist() {
       icon: Image,
     },
     {
-      label: 'Invite your team',
+      label: 'Invite teammates (optional)',
       done: status.hasInvitedTeam,
       href: '/settings/team',
       icon: Users,
@@ -66,21 +73,22 @@ export function OnboardingChecklist() {
   const allDone = completedCount === steps.length;
 
   function handleDismiss() {
-    localStorage.setItem(DISMISSED_KEY, 'true');
-    setDismissed(true);
+    try { localStorage.setItem(dismissedKey, 'true'); } catch {}
+    setStatus(null);
+    window.dispatchEvent(new Event('exteriorviz-onboarding'));
   }
 
   return (
-    <Card className="border-brand-orange/30 bg-gradient-to-r from-brand-peach-light to-white mb-6">
+    <Card className="border-brand-orange/30 bg-white mb-6">
       <CardContent className="pt-5 pb-4 px-5">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className="font-semibold text-brand-brown text-base">
-              {allDone ? 'You\'re all set!' : 'Get started with RoofViz'}
+              {allDone ? 'You\'re all set!' : 'Set up your ExteriorViz workspace'}
             </h3>
             <p className="text-sm text-brand-brown/60 mt-0.5">
               {allDone
-                ? 'Your account is fully set up. Happy selling!'
+                ? 'Your workspace is ready for customer presentations.'
                 : `${completedCount} of ${steps.length} steps completed`}
             </p>
           </div>
@@ -94,7 +102,7 @@ export function OnboardingChecklist() {
         </div>
 
         {/* Progress bar */}
-        <div className="w-full bg-brand-peach/30 rounded-full h-1.5 mb-4">
+        <div role="progressbar" aria-label="Workspace setup" aria-valuenow={completedCount} aria-valuemin={0} aria-valuemax={steps.length} className="w-full bg-brand-peach/30 rounded-full h-1.5 mb-4">
           <div
             className="bg-brand-orange h-1.5 rounded-full transition-all duration-500"
             style={{ width: `${(completedCount / steps.length) * 100}%` }}
