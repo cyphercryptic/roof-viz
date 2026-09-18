@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { hasGenerationAccess } from '@/lib/security-policy';
 
 // PostgREST silently caps unranged selects at 1000 rows, which understates every
 // aggregate for busy tenants. Page through with .range() until a short page.
@@ -14,7 +15,8 @@ async function fetchAllRows<T>(
 ): Promise<T[]> {
   const rows: T[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error || !data) throw new Error('Analytics query failed');
     if (!data || data.length === 0) break;
     rows.push(...data);
     if (data.length < PAGE_SIZE) break;
@@ -22,7 +24,7 @@ async function fetchAllRows<T>(
   return rows;
 }
 
-export async function GET() {
+async function getAnalytics() {
   const supabase = await createClient();
 
   // Auth check
@@ -31,12 +33,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('tenant_id, role')
     .eq('id', user.id)
     .single();
 
+  if (profileError && profileError.code !== 'PGRST116') throw new Error('Profile query failed');
   if (!profile) {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
@@ -50,16 +53,17 @@ export async function GET() {
 
   // Rate limit by user
   const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/analytics', RATE_LIMITS.general);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
   // Plan gate: must be business or business_pro
-  const { data: subscription } = await adminSupabase
+  const { data: subscription, error: subscriptionError } = await adminSupabase
     .from('subscriptions')
-    .select('plan')
+    .select('plan, status, current_period_end')
     .eq('tenant_id', profile.tenant_id)
     .single();
 
-  if (!subscription || (subscription.plan !== 'business' && subscription.plan !== 'business_pro')) {
+  if (subscriptionError && subscriptionError.code !== 'PGRST116') throw new Error('Subscription query failed');
+  if (!subscription || !hasGenerationAccess(subscription) || (subscription.plan !== 'business' && subscription.plan !== 'business_pro')) {
     return NextResponse.json(
       { error: 'Analytics is available on Business plans and above' },
       { status: 403 }
@@ -69,23 +73,26 @@ export async function GET() {
   const tenantId = profile.tenant_id;
 
   // Total completed visualizations
-  const { count: totalVisualizations } = await adminSupabase
+  const { count: totalVisualizations, error: totalError } = await adminSupabase
     .from('visualizations')
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('status', 'completed');
 
   // Visualizations this month
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-  const { count: thisMonthCount } = await adminSupabase
+  const { count: thisMonthCount, error: monthError } = await adminSupabase
     .from('visualizations')
     .select('*', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .eq('status', 'completed')
     .gte('created_at', startOfMonth.toISOString());
+
+  if (totalError || monthError || totalVisualizations === null || thisMonthCount === null) {
+    throw new Error('Analytics counts unavailable');
+  }
 
   // Average processing time
   const processingData = await fetchAllRows<{ processing_time_ms: number | null }>(() =>
@@ -96,6 +103,7 @@ export async function GET() {
       .eq('status', 'completed')
       .not('processing_time_ms', 'is', null)
       .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
   );
 
   let avgProcessingTime = 0;
@@ -112,6 +120,7 @@ export async function GET() {
       .eq('tenant_id', tenantId)
       .eq('status', 'completed')
       .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
   );
 
   const productCounts: Record<string, { name: string; brand: string; color: string; count: number }> = {};
@@ -138,6 +147,7 @@ export async function GET() {
       .eq('tenant_id', tenantId)
       .eq('status', 'completed')
       .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
   );
 
   const repStats: Record<string, { name: string; count: number; lastActive: string }> = {};
@@ -159,8 +169,8 @@ export async function GET() {
 
   // Daily visualization count for last 30 days
   const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  thirtyDaysAgo.setHours(0, 0, 0, 0);
+  thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
+  thirtyDaysAgo.setUTCHours(0, 0, 0, 0);
 
   const dailyVizData = await fetchAllRows<{ created_at: string }>(() =>
     adminSupabase
@@ -170,6 +180,7 @@ export async function GET() {
       .eq('status', 'completed')
       .gte('created_at', thirtyDaysAgo.toISOString())
       .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
   );
 
   // Build daily counts map
@@ -177,7 +188,7 @@ export async function GET() {
   // Initialize all 30 days with 0
   for (let i = 0; i < 30; i++) {
     const d = new Date();
-    d.setDate(d.getDate() - (29 - i));
+    d.setUTCDate(d.getUTCDate() - (29 - i));
     const key = d.toISOString().split('T')[0];
     dailyCounts[key] = 0;
   }
@@ -200,4 +211,13 @@ export async function GET() {
     repsPerformance,
     dailyActivity,
   });
+}
+
+export async function GET() {
+  try {
+    return await getAnalytics();
+  } catch {
+    console.error('Analytics data unavailable');
+    return NextResponse.json({ error: 'Analytics is temporarily unavailable. Please try again.' }, { status: 503 });
+  }
 }

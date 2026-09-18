@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   // Rate limit by user
   const adminSupabaseForUsage = createAdminClient();
   const rateCheck = await checkRateLimit(adminSupabaseForUsage, user.id, '/api/visualize', RATE_LIMITS.visualize);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
   // Check usage limits
   let usage: Awaited<ReturnType<typeof checkUsage>>;
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
     if (signedUrlError || !urlData?.signedUrl) throw new Error('Failed to create result link');
 
-    // Update visualization record
+    // Migration023 commits completion, usage and any PAYG outbox event together.
     const { error: completionError } = await adminSupabase
       .from('visualizations')
       .update({
@@ -208,7 +208,8 @@ export async function POST(request: NextRequest) {
         error_message: internalMessage,
         processing_time_ms: processingTime,
       })
-      .eq('id', visualization.id);
+      .eq('id', visualization.id)
+      .eq('status', 'processing');
 
     // A refusal is expected/user-actionable; anything else is a real fault worth alerting on.
     if (!refused) Sentry.captureException(error);

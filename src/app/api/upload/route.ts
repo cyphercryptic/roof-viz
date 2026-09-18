@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { checkRateLimit, getClientIp, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
+import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { MAX_FILE_SIZE, ACCEPTED_IMAGE_TYPES } from '@/lib/constants';
-import sharp from 'sharp';
+import { ImageValidationError, normalizeImageBuffer } from '@/lib/image-normalization';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   // Rate limit by user
   const adminSupabase = createAdminClient();
   const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/upload', RATE_LIMITS.upload);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
   // Get the user's tenant
   const { data: profile } = await supabase
@@ -29,15 +29,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get('file') as File;
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json({ error: 'Invalid photo upload. Please choose the photo again.' }, { status: 400 });
+  }
+  const file = formData.get('file');
 
-  if (!file) {
+  if (!(file instanceof File)) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   }
 
   // Validate file size
-  if (file.size > MAX_FILE_SIZE) {
+  if (!file.size || file.size > MAX_FILE_SIZE) {
     return NextResponse.json(
       { error: `File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB.` },
       { status: 400 }
@@ -57,36 +62,10 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Use sharp to convert any format (including HEIC/HEIF from iPhones) to PNG
-    // If sharp can't handle the format, fall back to using the raw buffer
-    let optimized: Buffer;
-    try {
-      optimized = await sharp(buffer)
-        .rotate() // Auto-rotate based on EXIF orientation
-        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-        .png()
-        .toBuffer();
-    } catch (sharpError) {
-      // If sharp fails (e.g., HEIC without libheif), try converting via JPEG first
-      // or just pass through as-is for formats sharp can't handle
-      console.error('Sharp processing error:', sharpError);
-      try {
-        optimized = await sharp(buffer, { failOn: 'none' })
-          .rotate()
-          .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 90 })
-          .toBuffer();
-      } catch {
-        return NextResponse.json(
-          { error: 'Unsupported image format. Please use JPEG or PNG instead of HEIC.' },
-          { status: 400 }
-        );
-      }
-    }
+    const optimized = await normalizeImageBuffer(buffer, { maxBytes: MAX_FILE_SIZE, maxDimension: 1024 });
 
     // Generate unique path
-    const timestamp = Date.now();
-    const path = `${profile.tenant_id}/${timestamp}/original.png`;
+    const path = `${profile.tenant_id}/${crypto.randomUUID()}/original.png`;
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
@@ -97,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Storage upload error:', uploadError);
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      return NextResponse.json({ error: 'Unable to save your photo. Please try again.' }, { status: 500 });
     }
 
     // The bucket is private — return a signed URL for the client-side preview.
@@ -116,9 +95,10 @@ export async function POST(request: NextRequest) {
       url: urlData.signedUrl,
     });
   } catch (err) {
+    if (err instanceof ImageValidationError) return NextResponse.json({ error: err.message }, { status: 400 });
     console.error('Upload error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Upload failed' },
+      { error: 'Photo upload failed. Please try again.' },
       { status: 500 }
     );
   }

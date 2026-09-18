@@ -77,8 +77,8 @@ export function ProductForm({ product, defaultCategory = 'roofing', onSubmit, on
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast.error('Please select a PNG, JPEG, or WebP image');
       return;
     }
 
@@ -90,12 +90,16 @@ export function ProductForm({ product, defaultCategory = 'roofing', onSubmit, on
     setUploading(true);
     try {
       const supabase = createClient();
-      const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `custom/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sign in to upload a swatch');
+      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single();
+      if (!profile?.tenant_id) throw new Error('Company not found');
+      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      const fileName = `${profile.tenant_id}/custom/${crypto.randomUUID()}.${ext}`;
 
       const { error } = await supabase.storage
         .from('product-swatches')
-        .upload(fileName, file, { contentType: file.type, upsert: true });
+        .upload(fileName, file, { contentType: file.type });
 
       if (error) throw error;
 
@@ -432,7 +436,7 @@ export function ProductForm({ product, defaultCategory = 'roofing', onSubmit, on
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp"
               onChange={handleSwatchUpload}
               className="hidden"
             />

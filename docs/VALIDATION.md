@@ -1,26 +1,34 @@
-# Integration validation — 18 September 2026
+# Integration and full code-review validation — 18 September 2026
 
-The unified app was checked without paid image generation, live payments, outbound email or customer-data writes.
+The unified app was checked without paid image generation, live payments, outbound email or customer-data writes. The full follow-up audit starts at commit `fd5d2d0` on `integration/unified-viz`; findings and remaining risks are in [CODE-REVIEW.md](CODE-REVIEW.md).
 
-## Passed
+## Current automated results
 
-- Production Next.js webpack build, including TypeScript and 37 routes.
-- Full ESLint: zero errors; 12 existing/reviewed warnings for unused code and raw tenant-logo images.
-- `npm test`: domain fixtures cover all 503 products, all four generation categories, perspective/tenant validation, provider input contracts and canonical catalog imports; onboarding fixtures cover verified identity, safe callback destinations and race recovery; 37 individual policy/invitation/webhook/checkout tests pass.
-- Actual migrations 019 and 020 run successfully against an ephemeral PostgreSQL-compatible PGlite database. Its 17 checks cover profile permissions, cross-tenant sharing, path normalization attacks, usage reservation, immutable results, billing reconciliation and atomic invitation seat limits.
-- HTTP checks on the local app: home, login, signup, privacy, terms, password reset, robots, sitemap, and both social images return 200.
-- Read-only infrastructure inspection: Roof photo/result buckets are private; migration 018's webhook table exists. Unified category columns and migration 020's new processed-event table are not present yet.
-- Read-only Stripe test-price verification: all five configured prices are active USD prices matching application amounts; Pay As You Go uses metered usage. No customer, Checkout session, payment or subscription was created.
-- Git base matches the fetched upstream main commit `9d88f21`; changes are isolated on `integration/unified-viz`.
+- **67 Node test-runner checks pass** across access policies, invite/checkout/webhook routes, account/gallery recovery, analytics/status, quota rules, URLs, rate limiting, durable billing and render integration.
+- **33 database checks pass** across both PGlite suites. They execute actual migrations through 023, plus the standalone atomic rate-limit migration, with database roles/RLS, tenant fixtures, transaction rollback and simulated lease interleavings.
+- **Four additional fixture suites pass**: 503-product/domain routing and prompts; verified onboarding/callback/race handling; image format/size/upload/provider retry boundaries using Sharp; actual PDF generation using pdf-lib/Sharp for four categories, long content, aspect preservation and export access guards.
+- **TypeScript passes**, including an explicit nonincremental check.
+- **Full ESLint passes with zero errors and zero warnings.**
+- **Dependency audit: zero reported vulnerabilities**, including development dependencies, at review time.
+- **Source credential guard passes.** Two embedded privileged credentials were removed from current maintenance-script source. This checks known patterns in current files, not historical commits or credential validity. [Key retirement remains mandatory](CREDENTIAL-ROTATION.md).
+- **Diff whitespace check passes.** No new runtime dependency was installed.
 
-## Deliberately unverified / required before launch
+**Production Next.js webpack build passes**, including TypeScript, static generation and server-route compilation. The review branch deploys to the [protected Vercel preview](https://roof-viz-git-integration-unified-viz-cyphercryptics-projects.vercel.app); original production aliases remain unchanged.
 
-- No controlled browser session was available. HTTP, source and build checks are not a substitute for interactive desktop/mobile and keyboard QA.
-- No live Supabase migrations were applied. Follow [UNIFIED-CUTOVER.md](UNIFIED-CUTOVER.md); use the SQL editor manually.
-- Existing WindowViz accounts, subscription mappings and saved images are still in the independent Window service.
-- Real authenticated signup/confirmation/reset/invitation, cross-tenant access, live webhook delivery, paid metering and generation fidelity need staged checks after database setup.
-- Stripe is in test mode in both inspected Doppler configurations. Application email has no Resend key/verified sender.
-- Stripe metering has an idempotent visualization identifier but no durable retry queue; reconcile failed reporting before relying on Pay As You Go revenue.
-- An open checkout for another plan must be finished, expired or resolved through support before choosing a different plan, preventing duplicate subscriptions.
+## HTTP and artifact checks
 
-The deployment is a review preview, not a claim that live client onboarding or charging has been activated.
+Local HTTP checks after the fixes: home, login, signup, privacy, terms, password reset, robots, sitemap and both social images return200. Unauthenticated usage, analytics and onboarding-status requests return401. Two synthetic long-content PDF pages were rendered and visually inspected: no clipped content/footer overlap; portrait and wide images retain their proportions.
+
+The earlier integration's read-only infrastructure checks found Roof customer-media buckets private and migration018's webhook table present. Category columns and020's processed-event table were absent. No live schema was changed during either review. Both inspected Doppler configurations use Stripe test mode; application Resend delivery is not configured. All five configured test prices were read-only verified against their application amounts, with PAYG using metered usage.
+
+## What these checks do not prove
+
+- No controlled browser session was available. Component fixtures, HTTP, source and build checks do not replace real desktop/mobile/keyboard or authenticated browser QA.
+- PGlite runs real PostgreSQL-compatible SQL but serializes connections. It does not exercise Supabase Storage/PostgREST or concurrent independent network clients.
+- Provider and Stripe calls are mocked. Model fidelity, real signup/email/reset/invite delivery, full subscription lifecycle and live usage delivery still need staged checks.
+- The committed service-role key has **not** been retired. Current-file scanning and source removal do not secure its historical copies.
+- Migrations019–023 require manual SQL Editor application with a compatible frontend. Preview hosting shares the Roof backend; it is not an isolated test database.
+- PAYG stays disabled until the hourly retry schedule, protected worker, heartbeat and meter configuration are verified. A daily cron alone is insufficient. See [metering operations](metering-operations.md).
+- Existing Window accounts/history remain in the independent service; migration requires the mapping and reconciliation in [UNIFIED-CUTOVER.md](UNIFIED-CUTOVER.md).
+
+A successful review preview is not a claim that live client charging or onboarding is activated.

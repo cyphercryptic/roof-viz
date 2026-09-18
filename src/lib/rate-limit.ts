@@ -11,6 +11,7 @@ interface RateLimitResult {
   allowed: boolean;
   remaining: number;
   retryAfterSeconds: number;
+  unavailable?: boolean;
 }
 
 export const RATE_LIMITS = {
@@ -22,8 +23,8 @@ export const RATE_LIMITS = {
 } as const;
 
 /**
- * Check rate limit using Supabase rate_limit_logs table.
- * Inserts a log entry and counts recent entries within the window.
+ * Atomically admit and record a request. Database failures deny admission so a
+ * missing migration or outage cannot silently disable provider spend controls.
  */
 export async function checkRateLimit(
   supabase: SupabaseClient,
@@ -31,43 +32,29 @@ export async function checkRateLimit(
   endpoint: string,
   config: RateLimitConfig
 ): Promise<RateLimitResult> {
-  const windowStart = new Date(Date.now() - config.windowSeconds * 1000).toISOString();
-
-  // Count existing requests in window
-  const { count, error } = await supabase
-    .from('rate_limit_logs')
-    .select('*', { count: 'exact', head: true })
-    .eq('identifier', identifier)
-    .eq('endpoint', endpoint)
-    .gte('created_at', windowStart);
-
-  if (error) {
-    // On error, allow the request (fail-open) but log
-    console.error('Rate limit check failed:', error);
-    return { allowed: true, remaining: config.maxRequests, retryAfterSeconds: 0 };
-  }
-
-  const currentCount = count ?? 0;
-
-  if (currentCount >= config.maxRequests) {
+  try {
+    const { data, error } = await supabase.rpc('consume_rate_limit', {
+      p_identifier: identifier,
+      p_endpoint: endpoint,
+      p_max_requests: config.maxRequests,
+      p_window_seconds: config.windowSeconds,
+    });
+    if (error || !data || typeof data.allowed !== 'boolean'
+      || !Number.isInteger(data.remaining) || data.remaining < 0 || data.remaining >= config.maxRequests
+      || !Number.isInteger(data.retry_after_seconds) || data.retry_after_seconds < 0
+      || (data.allowed && data.retry_after_seconds !== 0)
+      || (!data.allowed && (data.remaining !== 0 || data.retry_after_seconds < 1))) {
+      throw new Error('Rate limit admission unavailable');
+    }
     return {
-      allowed: false,
-      remaining: 0,
-      retryAfterSeconds: config.windowSeconds,
+      allowed: data.allowed,
+      remaining: data.remaining,
+      retryAfterSeconds: data.retry_after_seconds,
     };
+  } catch {
+    console.error('Rate limit admission unavailable');
+    return { allowed: false, remaining: 0, retryAfterSeconds: 30, unavailable: true };
   }
-
-  // Insert new log entry
-  await supabase.from('rate_limit_logs').insert({
-    identifier,
-    endpoint,
-  });
-
-  return {
-    allowed: true,
-    remaining: config.maxRequests - currentCount - 1,
-    retryAfterSeconds: 0,
-  };
 }
 
 /**
@@ -82,13 +69,15 @@ export function getClientIp(request: NextRequest): string {
 }
 
 /**
- * Return a standard 429 response with Retry-After header.
+ * Distinguish exhausted allowance from an unavailable admission service.
  */
-export function rateLimitResponse(retryAfterSeconds: number): NextResponse {
+export function rateLimitResponse(result: RateLimitResult | number): NextResponse {
+  const unavailable = typeof result !== 'number' && result.unavailable;
+  const retryAfterSeconds = typeof result === 'number' ? result : result.retryAfterSeconds;
   return NextResponse.json(
-    { error: 'Too many requests. Please try again later.' },
+    { error: unavailable ? 'Service temporarily unavailable. Please try again shortly.' : 'Too many requests. Please try again later.' },
     {
-      status: 429,
+      status: unavailable ? 503 : 429,
       headers: { 'Retry-After': String(retryAfterSeconds) },
     }
   );

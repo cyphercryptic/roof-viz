@@ -16,6 +16,7 @@ function fixture(options = {}) {
   const sub = { stripe_customer_id: options.newCustomer ? null : 'cus_A', stripe_subscription_id: options.localSubscription || null };
   function client() {
     return {
+      rpc: async () => ({ data: !options.schedulerStale, error: null }),
       auth: { getUser: async () => ({ data: { user: options.signedOut ? null : { id: 'user_A' } }, error: null }) },
       from(table) {
         let update = false;
@@ -62,6 +63,7 @@ function fixture(options = {}) {
     '@/lib/rate-limit': { checkRateLimit: async () => ({ allowed: true }), RATE_LIMITS: { general: {} } },
     '@/lib/validation': { billingCheckoutSchema: {}, parseBody: () => ({ success: true, data: { plan: options.plan || 'pro' } }) },
     '@/lib/site': { getSiteUrl: () => 'https://canonical.example' },
+    '@/lib/metering': { isMeteringConfigured: () => !options.meteringDisabled },
   };
   function load(code) {
     const context = { exports: {}, require: (name) => {
@@ -96,6 +98,11 @@ test('metered price omits quantity; licensed price sends one', async () => {
   assert.equal('quantity' in metered.calls.checkout[0][0].line_items[0],false);
   const licensed=fixture(); await licensed.checkout();
   assert.equal(licensed.calls.checkout[0][0].line_items[0].quantity,1);
+});
+test('metered checkout stays disabled until durable worker is configured', async () => {
+  const f=fixture({plan:'pay_per_use',meteringDisabled:true});
+  assert.equal((await f.checkout()).status,503); assert.equal(f.calls.checkout.length,0);
+  assert.equal((await fixture({plan:'pay_per_use',schedulerStale:true}).checkout()).status,503);
 });
 test('misconfigured recurring price is denied', async () => {
   const f=fixture({priceMismatch:true}); assert.equal((await f.checkout()).status,503); assert.equal(f.calls.checkout.length,0);

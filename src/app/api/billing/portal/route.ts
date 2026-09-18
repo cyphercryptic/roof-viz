@@ -17,7 +17,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Only admins can manage billing' }, { status: 403 });
     }
     const rate = await checkRateLimit(createAdminClient(), user.id, '/api/billing/portal', RATE_LIMITS.general);
-    if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
+    if (!rate.allowed) return rateLimitResponse(rate);
     const { data: subscription, error } = await supabase.from('subscriptions')
       .select('stripe_customer_id').eq('tenant_id', profile.tenant_id).single();
     if (error || !subscription) throw new Error('Could not load billing account');

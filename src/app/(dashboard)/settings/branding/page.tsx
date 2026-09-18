@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Paintbrush, Shield, Upload, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { Tenant } from '@/types';
 
 export default function BrandingPage() {
@@ -67,61 +68,34 @@ export default function BrandingPage() {
     const file = e.target.files?.[0];
     if (!file || !tenant) return;
 
+    const extensions: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+    const extension = extensions[file.type];
+    if (!extension || file.size > 5 * 1024 * 1024) { toast.error('Choose a PNG, JPEG, or WebP logo under 5MB.'); return; }
     setUploadingLogo(true);
-    const ext = file.name.split('.').pop();
-    const path = `${tenant.id}/logo.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('logos')
-      .upload(path, file, { upsert: true });
-
-    if (uploadError) {
-      toast.error('Failed to upload logo');
-      setUploadingLogo(false);
-      return;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('logos')
-      .getPublicUrl(path);
-
-    const publicUrl = urlData.publicUrl;
-
-    const { error: updateError } = await supabase
-      .from('tenants')
-      .update({ logo_url: publicUrl })
-      .eq('id', tenant.id);
-
-    if (updateError) {
-      toast.error('Failed to save logo URL');
-    } else {
-      setLogoUrl(publicUrl);
+    try {
+      const path = `${tenant.id}/logo-${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('logos').upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('logos').getPublicUrl(path);
+      const { data: updated, error } = await supabase.from('tenants').update({ logo_url: data.publicUrl }).eq('id', tenant.id).select('id').single();
+      if (error || !updated) throw error || new Error('Company update failed');
+      setLogoUrl(data.publicUrl);
       toast.success('Logo uploaded');
-    }
-
-    setUploadingLogo(false);
+    } catch { toast.error('Could not save your logo. Please try again.'); }
+    finally { setUploadingLogo(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!tenant) return;
+    if (![primaryColor, secondaryColor].every(color => /^#[0-9a-f]{6}$/i.test(color))) { toast.error('Use valid six-digit hex colors, such as #1F587A.'); return; }
     setSaving(true);
-
-    const { error } = await supabase
-      .from('tenants')
-      .update({
-        brand_primary_color: primaryColor,
-        brand_secondary_color: secondaryColor,
-        hide_powered_by: hidePoweredBy,
-      })
-      .eq('id', tenant.id);
-
-    if (error) {
-      toast.error('Failed to save branding settings');
-    } else {
+    try {
+      const { data, error } = await supabase.from('tenants').update({ brand_primary_color: primaryColor, brand_secondary_color: secondaryColor, hide_powered_by: hidePoweredBy }).eq('id', tenant.id).select('id').single();
+      if (error || !data) throw error || new Error('Company update failed');
       toast.success('Branding settings saved');
-    }
-    setSaving(false);
+    } catch { toast.error('Could not save branding settings. Please try again.'); }
+    finally { setSaving(false); }
   }
 
   if (loading) {
@@ -192,7 +166,10 @@ export default function BrandingPage() {
           <CardContent className="space-y-4">
             {logoUrl ? (
               <div className="flex items-center gap-4">
-                <img
+                <Image
+                  width={64}
+                  height={64}
+                  unoptimized
                   src={logoUrl}
                   alt="Company logo"
                   className="h-16 w-16 rounded-lg object-contain border border-brand-peach/30"
@@ -222,12 +199,12 @@ export default function BrandingPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp"
               className="hidden"
               onChange={handleLogoUpload}
             />
             <p className="text-xs text-brand-brown-soft">
-              Recommended: Square image, at least 128x128px. PNG or SVG preferred.
+              Recommended: Square image, at least 128x128px. PNG, JPEG, or WebP, up to 5MB.
             </p>
           </CardContent>
         </Card>
@@ -313,7 +290,10 @@ export default function BrandingPage() {
               <div className="bg-white border-b border-brand-peach/30 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {logoUrl ? (
-                    <img
+                    <Image
+                      width={32}
+                      height={32}
+                      unoptimized
                       src={logoUrl}
                       alt="Logo preview"
                       className="h-8 w-8 rounded-lg object-contain"

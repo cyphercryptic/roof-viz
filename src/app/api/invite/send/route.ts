@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
     const rateCheck = await checkRateLimit(admin, user.id, '/api/invite/send', RATE_LIMITS.general);
-    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
     const parsed = parseBody(inviteSendSchema, await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const email = parsed.data.email.trim().toLowerCase();

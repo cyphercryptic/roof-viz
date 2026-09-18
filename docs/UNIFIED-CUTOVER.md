@@ -13,12 +13,16 @@ Recorded read-only inventory at handoff; repeat before any migration:
 
 The merged static catalog has 503 variants, including one marked coming soon. These are choices available to import, not 503 existing tenant products. Each render changes one selected category; a combined whole-house makeover is not implemented.
 
+## Urgent credential gate
+
+The code review found a legacy Roof service-role key in tracked maintenance scripts. Current source is sanitized; historical copies remain. Complete [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md) before relying on tenant isolation or client launch. This does not require applying the unified schema to the old app.
+
 ## 1. Confirm the destination and preserve recovery
 
 - Work from this unified checkout and record its Git commit plus the current Roof Vercel deployment URL/ID. Its existing Vercel link is `roof-viz`; do not assume this checkout targets a new hosting project.
 - Confirm Vercel's Supabase URL identifies **`gqqvxzxzuaevsuwazaqx`**. Keep secret values in Doppler/Vercel; do not put credentials in this runbook or commit them.
 - Obtain a recoverable database backup and a private object inventory using existing backup tooling. Preserve bucket/path/size metadata and recoverable copies of customer objects. Confirm recovery before schema work; do not purchase backup upgrades implicitly.
-- Preview and review the unified build first. Reserve a short cutover window with no Roof signups, renders, catalog writes, or checkout attempts. Window remains independent. Migration 020 changes permissions on the database shared with the old Roof frontend, so a second Vercel preview is **not** backend isolation.
+- Preview and review the unified build first. Reserve a short cutover window with no Roof signups, renders, catalog writes, or checkout attempts. Window remains independent. Migrations 020–023 change permissions and billing contracts on the database shared with the old Roof frontend, so a second Vercel preview is **not** backend isolation.
 
 ## 2. Inspect current state — read-only SQL
 
@@ -76,14 +80,17 @@ Expected after setup: customer media buckets private; logos/swatches public; the
 1. Verify the effects of [018_private_storage_and_webhook_events.sql](../supabase/migrations/018_private_storage_and_webhook_events.sql). If absent, paste and run that file first. It ensures the four buckets, makes customer media private, removes the blanket public read policy, and adds the legacy webhook ledger. Use a signed-URL-compatible frontend when making media private.
 2. Paste and run the complete [019_unified_product_categories.sql](../supabase/migrations/019_unified_product_categories.sql). It adds category/configuration fields and indexes while retaining roof `style`, IDs and history. Existing rows default to roofing/exterior. The file ends with read-only category counts.
 3. Paste and run the complete [020_security_boundaries.sql](../supabase/migrations/020_security_boundaries.sql). It locks profile provisioning and job updates to server paths, enforces share ownership, reserves visualization quota atomically, and installs the completed-only Stripe event ledger/RPC.
-4. Repeat the checks above. Existing entity counts must remain unchanged by these schema files. Verify `style` values and existing photo paths are intact. Review any SQL error before continuing; 019 and 020 each use a transaction.
+4. Paste and run [021_review_hardening.sql](../supabase/migrations/021_review_hardening.sql). It enforces paid, expiring shares and pooled demo quotas, fixes catalog/branding storage permissions, and requires a fenced Stripe reconciliation lease.
+5. Paste and run [022_atomic_rate_limits.sql](../supabase/migrations/022_atomic_rate_limits.sql). All rate-limited API routes require this service-only admission RPC; missing SQL deliberately returns a retryable service error.
+6. Paste and run [023_metering_outbox.sql](../supabase/migrations/023_metering_outbox.sql) for atomic completion/accounting and durable usage reporting. Follow [metering-operations.md](metering-operations.md) for scheduler activation and reconciliation. Keep Pay As You Go disabled until its worker and configuration are verified.
+7. Repeat the checks above. Existing entity counts must remain unchanged by these schema files. Verify `style` values and existing photo paths are intact. Review any SQL error before continuing; Each new schema file uses a transaction. Keep writes paused until the schema-compatible app is running.
 
 Migration 018's ledger is retained for history; the unified webhook uses 020's completed-only ledger. Do not delete or reuse the old ledger to suppress new webhook deliveries.
 
 ## 4. Promote and smoke-test
 
-1. Confirm the final build includes the 019/020-aware server routes, auth callback, onboarding, and signed media URLs. Run the documented local checks, including `node scripts/test-unified-domain.cjs` and the security tests supplied in `scripts/`, plus typecheck, lint and production build.
-2. Configure the intended stable site URL through the existing Doppler → Vercel integration. A Vercel hostname is sufficient; a purchased/custom domain is not required. If using a preview for auth testing, explicitly use that preview's URL so links do not silently return to the old production app.
+1. Confirm the final build includes the 019–023-aware server routes, auth callback, onboarding, and signed media URLs. Run the documented local checks, including `node scripts/test-unified-domain.cjs` and the security tests supplied in `scripts/`, plus typecheck, lint and production build.
+2. Configure the intended stable site URL through the existing Doppler → Vercel integration. A Vercel hostname is sufficient; a purchased/custom domain is not required. Preview deployments select their trusted Vercel branch/deployment URL automatically; allow that exact URL in Supabase Auth before testing. Production continues to use the configured custom URL or production Vercel hostname.
 3. In canonical Supabase Auth, verify Site URL and allowed redirects for the actual host and `/auth/callback` flow; retain required legacy redirects during transition. Test confirmation, login, reset-password, onboarding recovery and invite acceptance with controlled accounts. Supabase Auth email delivery is separate from application Resend email.
 4. Promote the reviewed unified deployment during the reserved window. Confirm the configured Stripe webhook endpoint is the unified host's `/api/billing/webhook` and that its signing secret matches the selected Stripe mode. Replay failed **test** events after the new RPC exists; do not fabricate successful payment status.
 5. Verify existing Roof login/history and private previews; import a few products in each category; check duplicate imports, category selection, interior/exterior choice, gallery sharing/revocation and proposal download. Test an unauthenticated and a second-tenant session for access denial. Avoid clicking Generate during unpaid smoke checks.
@@ -100,11 +107,11 @@ Migration 018's ledger is retained for history; the unified webhook uses 020's c
 
 If checks fail, stop new signups/renders/checkouts and retain the database, storage and current event ledger. Prefer a forward fix or a previously tested **schema-compatible unified build**. Do not drop new columns/tables, reopen public media, undo security permissions, or restore an old database over new customer writes just to roll back the frontend.
 
-The pre-merge Roof build is not an automatic rollback target after 020: its client writes and webhook handling may expect old permissions/contracts. Verify compatibility before promoting it. If full recovery is unavoidable, assess all writes since the backup and prepare a preservation/replay plan first; restoring data is a separate destructive action requiring explicit approval. Window's independent deployment can continue serving its existing customers throughout.
+The pre-merge Roof build is not an automatic rollback target after 020–023: its client writes and webhook handling may expect old permissions/contracts. Verify compatibility before promoting it. If full recovery is unavoidable, assess all writes since the backup and prepare a preservation/replay plan first; restoring data is a separate destructive action requiring explicit approval. Window's independent deployment can continue serving its existing customers throughout.
 
 ## 7. Separate Window account/history migration
 
-Plan this as a later controlled import; nothing in 019/020 moves Window data.
+Plan this as a later controlled import; none of these schema migrations moves Window data.
 
 1. Inventory Window Auth users, identities, tenant membership, catalog/history, sharing, object paths and Stripe mappings. Compare UUID collisions and ownership to Roof. Store a private source→destination mapping; never merge accounts merely because emails match. Have the account owner confirm any intentional linkage.
 2. Choose a supported Auth migration or reauthentication/onboarding path. Preserve source user UUIDs where safely possible; otherwise remap every profile/creator/invite reference. Do not copy project-specific sessions/tokens or assume passwords transfer automatically. Preserve tenant/product/visualization IDs where collision-free; record explicit remaps otherwise.

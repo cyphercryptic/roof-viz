@@ -21,6 +21,9 @@ export default function TeamPage() {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [shareInviteUrl, setShareInviteUrl] = useState('');
+  const [revoking, setRevoking] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [inviteRole, setInviteRole] = useState<'rep' | 'demo'>('rep');
 
@@ -32,13 +35,36 @@ export default function TeamPage() {
   }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadTeam() {
-    const [{ data: memberData }, { data: inviteData }] = await Promise.all([
-      supabase.from('profiles').select('*').order('created_at'),
-      supabase.from('invites').select('*').is('accepted_at', null).order('created_at', { ascending: false }),
-    ]);
-    setMembers(memberData || []);
-    setInvites(inviteData || []);
-    setLoading(false);
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const [membersResult, invitesResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('tenant_id', profile!.tenant_id).order('created_at'),
+        supabase.from('invites').select('*').eq('tenant_id', profile!.tenant_id).is('accepted_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }),
+      ]);
+      if (membersResult.error || invitesResult.error) throw new Error('Team unavailable');
+      setMembers(membersResult.data || []);
+      setInvites(invitesResult.data || []);
+    } catch { setLoadError(true); }
+    finally { setLoading(false); }
+  }
+
+  async function copyInvite(link: string) {
+    setShareInviteUrl(link);
+    try { await navigator.clipboard.writeText(link); toast.success('Invite link copied'); }
+    catch { toast.info('Select and copy the invitation link below.'); }
+  }
+
+  async function revokeInvite(invite: Invite) {
+    setRevoking(invite.id);
+    try {
+      const { error, data } = await supabase.from('invites').delete().eq('id', invite.id).eq('tenant_id', profile!.tenant_id).is('accepted_at', null).select('id');
+      if (error || !data?.length) throw new Error('Could not revoke invitation');
+      setShareInviteUrl('');
+      toast.success('Invitation revoked. The seat is available again.');
+      await loadTeam();
+    } catch { toast.error('Could not revoke this invitation. Please refresh and try again.'); }
+    finally { setRevoking(null); }
   }
 
   async function handleInvite(e: React.FormEvent) {
@@ -62,6 +88,7 @@ export default function TeamPage() {
         return;
       }
 
+      if (data.inviteUrl) setShareInviteUrl(data.inviteUrl);
       if (data.emailSent) {
         toast.success(`Invite sent to ${inviteEmail}`);
       } else if (data.inviteUrl) {
@@ -71,7 +98,7 @@ export default function TeamPage() {
           await navigator.clipboard.writeText(data.inviteUrl);
           toast.success('Invite created — link copied to clipboard. Send it to them directly (email is not set up).', { duration: 8000 });
         } catch {
-          toast.warning('Invite created, but the email could not be sent. Use the copy-link button below to share it.', { duration: 8000 });
+          toast.warning('Invite created, but the email could not be sent. Select and copy the link below to share it.', { duration: 8000 });
         }
       } else {
         toast.success(`Invite created for ${inviteEmail}`);
@@ -163,6 +190,8 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
+      {shareInviteUrl && <Card><CardContent className="p-4"><Label htmlFor="invite-link">Invitation link</Label><Input id="invite-link" readOnly value={shareInviteUrl} onFocus={event => event.target.select()} className="mt-2" /></CardContent></Card>}
+      {loadError && <div role="alert" className="space-y-3 rounded-lg border border-red-200 p-4"><p>We could not load your team and invitations.</p><Button variant="outline" onClick={() => void loadTeam()}>Try again</Button></div>}
       {/* Pending invites */}
       {invites.length > 0 && (
         <Card>
@@ -188,14 +217,11 @@ export default function TeamPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      const link = `${window.location.origin}/invite/${invite.token}`;
-                      navigator.clipboard.writeText(link);
-                      toast.success('Invite link copied');
-                    }}
+                    onClick={() => void copyInvite(`${window.location.origin}/invite/${invite.token}`)}
                   >
                     Copy Link
                   </Button>
+                  <Button variant="ghost" size="sm" disabled={revoking !== null} onClick={() => void revokeInvite(invite)}>{revoking === invite.id ? 'Revoking…' : 'Revoke'}</Button>
                 </div>
               </div>
             ))}
@@ -216,7 +242,7 @@ export default function TeamPage() {
             <div className="flex justify-center py-4">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-orange border-t-transparent" />
             </div>
-          ) : (
+          ) : loadError ? <p>Team members could not be loaded.</p> : (
             members.map((member) => (
               <div key={member.id} className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-3">

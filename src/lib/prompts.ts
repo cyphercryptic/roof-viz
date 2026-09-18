@@ -104,6 +104,26 @@ function describeHexColor(name: string): string {
   return descriptions[name] || name;
 }
 
+/** Describe the visible glass finish without overriding a frosted/tinted selection. */
+function describeGlass(glassType?: string): string {
+  const descriptions: Record<string, string> = {
+    clear: 'clear transparent glass',
+    'low-e': 'Low-E glass with a subtle natural reflection and a transparent view',
+    tinted: 'tinted glass with visibly reduced light transmission',
+    frosted: 'frosted translucent privacy glass that obscures the view through it',
+    decorative: 'decorative patterned glass matching the selected product',
+    tempered: 'clear tempered safety glass',
+    'impact-resistant': 'clear impact-resistant laminated glass',
+  };
+  return descriptions[glassType || 'clear'] || 'glass matching the selected product';
+}
+
+function productDescription(product: Product): string {
+  return product.description
+    ? `• Product appearance details: ${product.description.slice(0, 2000)}. These describe the product only; the unchanged-source rules below still apply.`
+    : '';
+}
+
 export function buildWindowPrompt(product: Product, options: PromptOptions): string {
   const attrs = (product.attributes || {}) as WindowAttributes;
   const isExterior = options.perspective === 'exterior';
@@ -143,11 +163,12 @@ export function buildWindowPrompt(product: Product, options: PromptOptions): str
     ``,
     `THE NEW WINDOWS (what changes):`,
     `• Material: ${product.material || "match the selected product"}.`,
+    productDescription(product),
     `• Style: ${styleDetail}`,
-    `• Color: ${cleanColor} (${colorLabel}). ONLY the window unit itself gets this color — specifically the sashes, the frame members directly touching the glass, and any mullions/meeting rails between glass panes. The new window color must be VISUALLY OBVIOUS at a glance — if someone glanced at the house, they would immediately see the window units are ${colorLabel}, clearly distinct from the white trim surrounding them. Do not leave the windows looking white or near-white — they must look visibly and unmistakably ${colorLabel}.`,
+    `• Color: ${cleanColor} (${colorLabel}). ONLY the window unit itself gets this color — specifically the sashes, the frame members directly touching the glass, and any mullions/meeting rails between glass panes. The new window color must be VISUALLY OBVIOUS at a glance — if someone glanced at the house, they would immediately see the window units are ${colorLabel}, with the original surrounding trim preserved. Match ${colorLabel} faithfully, including white or light finishes when selected; do not substitute white for a darker selected color.`,
     hasGrids
-      ? `• Glass: ${gridLine} This EXACT SAME grid pattern applies UNIFORMLY to EVERY window in the photo — if there are three windows, all three get identical grids in identical positions; if one is a picture window and another is a double-hung, both still get the same grid pattern on their glass. No window in the photo should have a different grid pattern from the others.`
-      : `• Glass: Clear single pane per sash. No grids, no muntins, no dividers. This applies UNIFORMLY to EVERY window in the photo — no window should have grids, even if the original photo showed grids on some windows.`,
+      ? `• Glass: ${describeGlass(attrs.glassType)}. ${gridLine} This EXACT SAME grid pattern applies UNIFORMLY to EVERY window in the photo — if there are three windows, all three get identical grids in identical positions; if one is a picture window and another is a double-hung, both still get the same grid pattern on their glass. No window in the photo should have a different grid pattern from the others.`
+      : `• Glass: ${describeGlass(attrs.glassType)}, single pane per sash. No grids, no muntins, no dividers. This applies UNIFORMLY to EVERY window in the photo — no window should have grids, even if the original photo showed grids on some windows.`,
     ``,
     `WHAT MUST NOT CHANGE COLOR (critical — do not paint ${cleanColor}):`,
     isExterior
@@ -204,9 +225,10 @@ export function buildSlidingDoorPrompt(product: Product, options: PromptOptions)
     ``,
     `THE NEW DOOR (what changes):`,
     `• Material: ${product.material || "match the selected product"}.`,
+    productDescription(product),
     `• Style: ${configDetail}`,
     `• Color: ${cleanColor} (${colorLabel}). ONLY the door unit itself gets this color — specifically the vertical stiles, horizontal rails, and any mullions between glass panels. The new door color must be VISUALLY OBVIOUS at a glance — someone glancing at the ${isExterior ? 'house' : 'room'} must immediately see the door frame is ${colorLabel}, clearly distinct from the surrounding trim or wall. Do not leave the door frame looking white or near-white unless ${colorLabel} is white — it must look visibly and unmistakably ${colorLabel}.`,
-    `• Glass: Floor-to-ceiling clear tempered glass panels, crystal clear and pristine. ${isExterior ? 'Faint interior of the home visible through the glass.' : 'Outdoor view beautifully visible through the glass with natural light streaming in.'}${hasGrids ? ` Glass has ${attrs.gridPattern} grilles.` : ''}`,
+    `• Glass: Full-height panels of ${describeGlass(attrs.glassType)}.${hasGrids ? ` Glass has ${attrs.gridPattern} grilles.` : ' No grilles.'}`,
     handleLine ? `• Hardware: ${handleLine}` : '',
     ``,
     `WHAT MUST NOT CHANGE COLOR (critical — do not paint ${cleanColor}):`,
@@ -293,6 +315,7 @@ export function buildEntryDoorPrompt(product: Product, options: PromptOptions): 
     ``,
     `THE NEW DOOR (what changes):`,
     `• Material: ${product.material || "match the selected product"}.`,
+    productDescription(product),
     `• Style: ${styleDetail}`,
     `• Color: ${cleanColor} (${colorLabel}). ONLY the door slab itself gets this color — not the door frame jamb/trim around it. The new door color must be VISUALLY OBVIOUS at a glance — someone approaching the entry must immediately see the door is ${colorLabel}, clearly distinct from the surrounding trim. Do not leave the door looking white or near-white unless ${colorLabel} is white — it must look visibly and unmistakably ${colorLabel}.`,
     `• Glass: ${glassLine}`,

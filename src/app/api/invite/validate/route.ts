@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   // Rate limit by IP (unauthenticated)
   const ip = getClientIp(request);
   const rateCheck = await checkRateLimit(supabase, ip, '/api/invite/validate', RATE_LIMITS.invite);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
   const token = request.nextUrl.searchParams.get('token');
   const parsed = parseBody(inviteValidateSchema, { token });

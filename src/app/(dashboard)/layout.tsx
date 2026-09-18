@@ -9,7 +9,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { profile, loading } = useUser();
+  const { profile, loading, error, retry } = useUser();
 
   if (loading) {
     return (
@@ -24,6 +24,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </main>
     );
+  }
+
+  if (error) {
+    return <main id="main-content" className="flex min-h-screen items-center justify-center bg-brand-cream p-6"><div role="alert" className="max-w-md space-y-4 rounded-xl border border-border bg-white p-8"><h1 className="text-2xl font-semibold">Your workspace is temporarily unavailable</h1><p>{error}</p><button type="button" onClick={retry} className="rounded-lg bg-brand-orange px-5 py-3 font-medium text-white">Try again</button></div></main>;
   }
 
   if (!profile) {

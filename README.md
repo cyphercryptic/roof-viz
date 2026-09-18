@@ -43,6 +43,8 @@ npm test
 
 Generation tests must be mocked or explicitly planned; do not spend image-generation credits in ordinary smoke checks. A production build validates compilation, not live email delivery, Stripe payment fulfillment or model output quality.
 
+The deeper audit and remaining findings are documented in [CODE-REVIEW.md](docs/CODE-REVIEW.md). A previously committed privileged Supabase credential was removed from current source; [key replacement/retirement](docs/CREDENTIAL-ROTATION.md) is still required.
+
 ## Launch dependencies
 
 The unified product needs the new category and security migrations in `supabase/migrations/`. Follow [the integration runbook](docs/UNIFIED-CUTOVER.md) before production cutover. RoofViz and WindowViz use distinct database projects; do not replay WindowViz's historical migration sequence into RoofViz.

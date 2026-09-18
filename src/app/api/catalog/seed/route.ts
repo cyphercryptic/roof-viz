@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   // Rate limit by user
   const adminSupabase = createAdminClient();
   const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/catalog/seed', RATE_LIMITS.general);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
   const body = await request.json().catch(() => null);
   const parsed = parseBody(catalogSeedSchema, body);
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: existing, error: existingError } = await supabase.from('products')
-    .select('category, name, brand, color').eq('tenant_id', profile.tenant_id);
+    .select('id, category, name, brand, color, is_active').eq('tenant_id', profile.tenant_id);
   if (existingError) {
     const schemaMissing = ['42703', 'PGRST204'].includes(existingError.code);
     return NextResponse.json({
@@ -57,10 +57,18 @@ export async function POST(request: NextRequest) {
   }
   const key = (product: { category: string; brand: string; name: string; color: string }) =>
     JSON.stringify([product.category, product.brand, product.name, product.color]);
-  const known = new Set((existing || []).map(key));
+  const existingByKey = new Map<string, { id: string; is_active: boolean }>();
+  for (const product of existing || []) {
+    if (!existingByKey.has(key(product)) || product.is_active) existingByKey.set(key(product), product);
+  }
+  const known = new Set(existingByKey.keys());
+  const restoreIds = new Set<string>();
   const rows = [];
   for (const product of selections) {
-    if (!product || known.has(key(product))) continue;
+    if (!product) continue;
+    const previous = existingByKey.get(key(product));
+    if (previous?.is_active === false) restoreIds.add(previous.id);
+    if (known.has(key(product))) continue;
     known.add(key(product));
     rows.push({
       tenant_id: profile.tenant_id,
@@ -77,10 +85,17 @@ export async function POST(request: NextRequest) {
       is_active: true,
     });
   }
-  if (!rows.length) return NextResponse.json({ added: 0 });
+  let restored = 0;
+  if (restoreIds.size) {
+    const { data: restoredRows, error: restoreError } = await supabase.from('products')
+      .update({ is_active: true }).in('id', [...restoreIds]).eq('tenant_id', profile.tenant_id).select('id');
+    if (restoreError) return NextResponse.json({ error: 'Unable to restore selected products. Please try again.' }, { status: 500 });
+    restored = restoredRows?.length || 0;
+  }
+  if (!rows.length) return NextResponse.json({ added: restored, restored });
   const { data, error } = await supabase.from('products').insert(rows).select('id');
   if (error) {
     return NextResponse.json({ error: 'Unable to add selected products. Please try again.' }, { status: 500 });
   }
-  return NextResponse.json({ added: data?.length || 0 });
+  return NextResponse.json({ added: (data?.length || 0) + restored, restored });
 }

@@ -37,7 +37,7 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
-  const { profile, loading: userLoading } = useUser();
+  const { profile, loading: userLoading, error: userError, retry: retryUser } = useUser();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [gated, setGated] = useState(false);
@@ -45,9 +45,11 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (userLoading) return;
     fetchAnalytics();
-  }, [userLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userLoading]);
 
   async function fetchAnalytics() {
+    setLoading(true);
+    setGated(false);
     try {
       const res = await fetch('/api/analytics');
       if (res.status === 403) {
@@ -76,6 +78,9 @@ export default function AnalyticsPage() {
     );
   }
 
+  if (userError) return <div role="alert" className="space-y-3 p-6"><p>{userError}</p><Button onClick={retryUser}>Try again</Button></div>;
+  if (profile && !['owner', 'admin'].includes(profile.role)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Company admin access required</h1><p>Activity reports are available to your company&apos;s owners and administrators.</p><Link href="/visualize" className="text-brand-orange underline">Return to previews</Link></div>;
+
   if (gated) {
     return (
       <div className="max-w-lg mx-auto py-20 text-center">
@@ -101,7 +106,7 @@ export default function AnalyticsPage() {
   if (!data) {
     return (
       <div className="max-w-5xl mx-auto py-12 text-center text-brand-brown/50">
-        <p>Unable to load analytics data.</p>
+        <p>Unable to load analytics data.</p><Button variant="outline" className="mt-4" onClick={() => void fetchAnalytics()}>Try again</Button>
       </div>
     );
   }

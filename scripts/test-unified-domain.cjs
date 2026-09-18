@@ -94,14 +94,17 @@ async function routeCase(product, body = {}, options = {}) {
 }
 async function seedCase(products, existing = [], dbError = null) {
   let inserted = [];
+  let restored = [];
   const db = {
     auth: { getUser: async () => ({ data: { user: { id: uuid } } }) },
     from() {
       const query = {
         select() { return query; }, eq() { return query; },
+        update() { return query; },
+        in(_column, ids) { restored = existing.filter((product) => ids.includes(product.id)); return query; },
         insert(rows) { inserted = rows; return query; },
         single: async () => ({ data: { tenant_id: tenant, role: 'owner' } }),
-        then(resolve) { return Promise.resolve({ data: inserted.length ? inserted : existing, error: dbError }).then(resolve); },
+        then(resolve) { return Promise.resolve({ data: restored.length ? restored : inserted.length ? inserted : existing, error: dbError }).then(resolve); },
       };
       return query;
     },
@@ -113,7 +116,7 @@ async function seedCase(products, existing = [], dbError = null) {
     '@/lib/rate-limit': { checkRateLimit: async () => ({ allowed: true }), RATE_LIMITS: { general: {} } },
   })('src/app/api/catalog/seed/route.ts').POST;
   const response = await POST(new Request('https://example.test/api/catalog/seed', { method: 'POST', body: JSON.stringify({ products }) }));
-  return { response, inserted };
+  return { response, inserted, restored };
 }
 
 (async () => {
@@ -157,12 +160,25 @@ async function seedCase(products, existing = [], dbError = null) {
   assert.equal(seeded.response.status, 200);
   assert.equal(seeded.inserted.length, 4, 'Repeated products are seeded once');
   assert.equal((await seedCase(seeds, seeded.inserted)).inserted.length, 0, 'Existing products are not duplicated');
+  const archived = await seedCase([seeds[1]], [{ ...seeds[1], id: uuid, is_active: false }]);
+  assert.equal(archived.restored.length, 1);
+  assert.equal(archived.inserted.length, 0, 'Restore the original product ID instead of duplicating it');
+  assert.equal((await archived.response.json()).added, 1);
+  const whitePrompt = buildPrompt(normalizeProduct({ ...seeds[1], color: 'White' }), { perspective: 'exterior' });
+  assert.ok(!whitePrompt.includes('Do not leave the windows looking white'));
+  for (const category of ['window', 'sliding_glass_door', 'entry_door']) {
+    const product = normalizeProduct(MASTER_PRODUCTS.find((p) => p.category === category));
+    const prompt = buildPrompt({ ...product, description: 'Special custom appearance', attributes: { ...product.attributes, ...(category === 'entry_door' ? {} : { glassType: 'frosted' }) } }, { perspective: 'exterior' });
+    assert.ok(prompt.includes('Special custom appearance'));
+    if (category !== 'entry_door') assert.ok(prompt.includes('frosted translucent privacy glass'));
+  }
   const forged = { ...seeds[1], reference_image_url: 'https://attacker.example/private.png', attributes: { windowType: 'attacker' } };
   const canonical = await seedCase([forged]);
   assert.equal(canonical.inserted[0].reference_image_url, seeds[1].reference_image_url);
   assert.equal(canonical.inserted[0].attributes.windowType, seeds[1].attributes.windowType);
   assert.equal((await seedCase([{ ...seeds[0], name: 'Invented SKU' }])).response.status, 400);
   assert.equal((await seedCase(seeds, [], { code: '42703' })).response.status, 503);
+  const validImage = await require('sharp')({ create: { width: 4, height: 4, channels: 3, background: '#abcdef' } }).png().toBuffer();
   const providerCalls = [];
   let refuse = false;
   let fetches = 0;
@@ -171,15 +187,15 @@ async function seedCase(products, existing = [], dbError = null) {
       getGenerativeModel(config) {
         return { generateContent: async (parts, request) => {
           providerCalls.push({ config, parts, request });
-          return { response: refuse ? { candidates: [{ finishReason: 'SAFETY' }] } : { candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('image').toString('base64') } }] } }] } };
+          return { response: refuse ? { candidates: [{ finishReason: 'SAFETY' }] } : { candidates: [{ content: { parts: [{ inlineData: { data: validImage.toString('base64') } }] } }] } };
         } };
       }
     } },
-  }, { fetch: async () => { fetches++; return new Response(Buffer.from('asset'), { headers: { 'content-type': 'image/png' } }); } })('src/lib/gemini.ts');
-  const image = Buffer.from([0xff, 0xd8, 0xff]);
+  }, { fetch: async () => { fetches++; return new Response(validImage, { headers: { 'content-type': 'image/png' } }); } })('src/lib/gemini.ts');
+  const image = validImage;
   await provider.generateProductVisualization({ houseImage: image, referenceImage: image, category: 'entry_door', prompt: 'Door' });
   assert.equal(providerCalls[0].config.model, 'gemini-3.1-flash-image-preview');
-  assert.equal(providerCalls[0].parts[0].inlineData.mimeType, 'image/jpeg');
+  assert.equal(providerCalls[0].parts[0].inlineData.mimeType, 'image/png');
   assert.match(providerCalls[0].parts[1].text, /entry door style reference/);
   assert.ok(providerCalls[0].request.signal);
   await provider.generateRoofVisualization({ houseImage: image, prompt: 'Roof' });
@@ -190,7 +206,7 @@ async function seedCase(products, existing = [], dbError = null) {
   assert.equal(await provider.fetchProductReference('http://127.0.0.1/private', new Set()), null);
   assert.equal(await provider.fetchProductReference('https://untrusted.example/asset.png', new Set()), null);
   assert.equal(fetches, 0);
-  assert.equal((await provider.fetchProductReference('https://manufacturer.example/product.png', new Set(['https://manufacturer.example/product.png']))).toString(), 'asset');
+  assert.equal((await require('sharp')(await provider.fetchProductReference('https://manufacturer.example/product.png', new Set(['https://manufacturer.example/product.png']))).metadata()).format, 'png');
   assert.equal(fetches, 1);
   console.log('PASS: 503 catalog variants, prompt routing, hinged doors, legacy rows, tenant/category validation, all four render flows, private result URLs, reference policy, completion-before-billing, provider MIME/model/refusal contracts, trusted reference fetches, canonical/idempotent catalog seeding. No external requests.');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

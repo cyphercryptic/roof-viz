@@ -10,9 +10,9 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { BeforeAfterSlider } from '@/components/visualize/BeforeAfterSlider';
 import { Input } from '@/components/ui/input';
 import {
-  Image as ImageIcon, Clock, CheckCircle, XCircle, Loader2,
+  Image as ImageIcon, Loader2,
   Share2, Link2, Check, Search, FolderOpen, ArrowLeft,
-  GitCompareArrows, Plus, FileText, Download,
+  GitCompareArrows, Plus, FileText,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { canShare, canGeneratePdf } from '@/lib/plan-features';
@@ -39,6 +39,9 @@ export default function GalleryPage() {
   const [visualizations, setVisualizations] = useState<VisualizationWithProduct[]>([]);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [plan, setPlan] = useState<string>('');
 
@@ -69,56 +72,51 @@ export default function GalleryPage() {
 
   async function loadVisualizations() {
     if (!profile) return;
-
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('plan')
-      .single();
-    if (sub) setPlan(sub.plan);
-
-    let query = supabase
-      .from('visualizations')
-      .select('*, products(*)')
-      .order('created_at', { ascending: false });
-
-    if (profile.role !== 'admin' && profile.role !== 'owner') {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        query = query.eq('created_by', user.id);
+    setLoading(true);
+    setLoadError(null);
+    setImageError(false);
+    try {
+      const { data: sub, error: subError } = await supabase.from('subscriptions').select('plan').eq('tenant_id', profile.tenant_id).single();
+      if (subError) throw subError;
+      setPlan(sub?.plan || '');
+      const rows: VisualizationWithProduct[] = [];
+      for (let start = 0; ; start += 500) {
+        let query = supabase.from('visualizations').select('*, products(*)').eq('tenant_id', profile.tenant_id)
+          .order('created_at', { ascending: false }).order('id', { ascending: false }).range(start, start + 499);
+        if (profile.role !== 'admin' && profile.role !== 'owner') query = query.eq('created_by', profile.id);
+        const { data, error } = await query;
+        if (error || !data) throw error || new Error('Previews unavailable');
+        rows.push(...data as VisualizationWithProduct[]);
+        if (data.length < 500) break;
       }
-    }
-
-    const { data, error } = await query;
-    if (!error && data) {
-      const vizs = data as VisualizationWithProduct[];
-      setVisualizations(vizs);
-      await signImageUrls(vizs);
-    }
-    setLoading(false);
+      setVisualizations(rows);
+      await signImageUrls(rows);
+    } catch { setLoadError('We could not load your saved previews. Please try again.'); }
+    finally { setLoading(false); }
   }
 
-  // Buckets are private — batch-create signed URLs for every image we might show.
-  // RLS scopes signing to the user's tenant, mirroring the query above.
   async function signImageUrls(vizs: VisualizationWithProduct[]) {
-    const expiresIn = 60 * 60 * 4;
+    const completed = vizs.filter(v => v.status === 'completed');
     const byBucket: Record<string, string[]> = {
-      'house-photos': [...new Set(vizs.map((v) => v.original_image_path).filter(Boolean))],
-      visualizations: [...new Set(vizs.map((v) => v.result_image_path).filter(Boolean))] as string[],
+      'house-photos': [...new Set(completed.map(v => v.original_image_path).filter(Boolean))],
+      visualizations: [...new Set(completed.map(v => v.result_image_path).filter(Boolean))] as string[],
     };
-
     const urls: Record<string, string> = {};
-    await Promise.all(
-      Object.entries(byBucket).map(async ([bucket, paths]) => {
-        if (paths.length === 0) return;
-        const { data } = await supabase.storage.from(bucket).createSignedUrls(paths, expiresIn);
-        for (const entry of data || []) {
-          if (entry.signedUrl && entry.path) {
-            urls[`${bucket}/${entry.path}`] = entry.signedUrl;
+    let failed = false;
+    await Promise.all(Object.entries(byBucket).map(async ([bucket, paths]) => {
+      for (let start = 0; start < paths.length; start += 100) {
+        try {
+          const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths.slice(start, start + 100), 60 * 60 * 4);
+          if (error || !data) { failed = true; continue; }
+          for (const entry of data) {
+            if (entry.signedUrl && entry.path) urls[`${bucket}/${entry.path}`] = entry.signedUrl;
+            else failed = true;
           }
-        }
-      })
-    );
+        } catch { failed = true; }
+      }
+    }));
     setSignedUrls(urls);
+    setImageError(failed);
   }
 
   // Group visualizations into projects.
@@ -224,11 +222,10 @@ export default function GalleryPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      const shareUrl = `${window.location.origin}/share/${data.token}`;
-      await navigator.clipboard.writeText(shareUrl);
-      setCopiedLink(true);
-      toast.success('Share link copied to clipboard!');
-      setTimeout(() => setCopiedLink(false), 3000);
+      const url = `${window.location.origin}/share/${data.token}`;
+      setShareUrl(url);
+      try { await navigator.clipboard.writeText(url); setCopiedLink(true); toast.success('Share link copied to clipboard!'); setTimeout(() => setCopiedLink(false), 3000); }
+      catch { toast.info('Your share link is ready. Select and copy it below.'); }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create share link');
     } finally {
@@ -264,7 +261,7 @@ export default function GalleryPage() {
   }
 
   function getImageUrl(bucket: string, path: string) {
-    return signedUrls[`${bucket}/${path}`] || '';
+    return signedUrls[`${bucket}/${path}`] || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect width="400" height="300" fill="%23eee"/%3E%3Ctext x="200" y="150" text-anchor="middle" fill="%23555"%3EImage unavailable%3C/text%3E%3C/svg%3E';
   }
 
   if (loading) {
@@ -275,6 +272,9 @@ export default function GalleryPage() {
     );
   }
 
+  if (loadError) return <div role="alert" className="space-y-3 rounded-xl border border-border bg-white p-6"><h1 className="text-xl font-semibold">Saved previews are unavailable</h1><p>{loadError}</p><Button onClick={() => void loadVisualizations()}>Try again</Button></div>;
+  const imageNotice = imageError ? <div role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>Some preview images are unavailable. Your project records are still saved.</p><Button size="sm" variant="outline" onClick={() => void loadVisualizations()} className="mt-2">Reload images</Button></div> : null;
+
   // ── PROJECT DETAIL VIEW ──
   if (view === 'detail' && activeProject) {
     const completedVizs = activeProject.visualizations.filter(
@@ -283,6 +283,7 @@ export default function GalleryPage() {
 
     return (
       <div className="max-w-5xl mx-auto">
+        {imageNotice}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -383,15 +384,17 @@ export default function GalleryPage() {
             const isCompareSelected = isSelectedA || isSelectedB;
 
             return (
-              <div
+              <button
+                type="button"
+                aria-label={`Open ${viz.products?.name || 'preview'}`}
                 key={viz.id}
                 onClick={() =>
                   compareMode
                     ? toggleCompareSelect(viz)
-                    : setSelectedViz(viz)
+                    : (setShareUrl(''), setSelectedViz(viz))
                 }
                 className={cn(
-                  'relative rounded-xl overflow-hidden cursor-pointer transition-all',
+                  'relative rounded-xl overflow-hidden cursor-pointer transition-all text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-orange',
                   compareMode && isCompareSelected
                     ? 'ring-3 ring-brand-orange shadow-lg scale-[1.02]'
                     : compareMode
@@ -419,7 +422,7 @@ export default function GalleryPage() {
                   <p className="font-medium text-xs truncate">{viz.products?.color}</p>
                   <p className="text-[11px] text-brand-brown/40 truncate">{viz.products?.brand}</p>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -433,6 +436,7 @@ export default function GalleryPage() {
                   beforeUrl={getImageUrl('house-photos', selectedViz.original_image_path)}
                   afterUrl={getImageUrl('visualizations', selectedViz.result_image_path)}
                 />
+                {shareUrl && <div className="rounded-lg border border-brand-peach p-3"><label htmlFor="share-link" className="text-sm font-medium">Homeowner share link</label><Input id="share-link" readOnly value={shareUrl} onFocus={event => event.target.select()} className="mt-2" /><a href={shareUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-brand-orange underline">Open shared preview</a></div>}
                 <div className="flex justify-between items-center px-1">
                   <div>
                     <p className="font-medium">{selectedViz.products?.name}</p>
@@ -535,6 +539,7 @@ export default function GalleryPage() {
         </p>
       </div>
 
+      {imageNotice}
       {/* Search bar */}
       {projects.length > 0 && (
         <div className="relative mb-4">
@@ -571,9 +576,11 @@ export default function GalleryPage() {
             const vizCount = project.visualizations.length;
 
             return (
-              <Card
+              <button
+                type="button"
+                aria-label={`Open project ${project.customerName}`}
                 key={project.key}
-                className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow group"
+                className="overflow-hidden rounded-xl border bg-white text-left cursor-pointer hover:shadow-md transition-shadow group focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-orange"
                 onClick={() => openProject(project)}
               >
                 {/* Thumbnail — show up to 2 stacked images for multi-viz projects */}
@@ -626,7 +633,7 @@ export default function GalleryPage() {
                     )}
                   </div>
                 </CardContent>
-              </Card>
+              </button>
             );
           })}
         </div>

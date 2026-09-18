@@ -2,15 +2,16 @@
  * Central site configuration. Nothing here should hardcode a specific domain — we're on
  * a *.vercel.app deployment until a custom domain is set up.
  *
- * Resolution order for the public site URL:
- *   1. NEXT_PUBLIC_SITE_URL          — set this once a custom domain exists
- *   2. VERCEL_PROJECT_PRODUCTION_URL — stable production *.vercel.app host (auto-set on Vercel)
- *   3. localhost                     — local dev
- *
- * VERCEL_PROJECT_PRODUCTION_URL is inlined at build time by Vercel, so it's safe to read
- * in both server and client bundles.
+ * Server-side URL for links and redirects. Preview links must stay on their own
+ * deployment even when production has a configured custom domain. Never trust a
+ * request Host header for billing or email redirects.
  */
 export function getSiteUrl(): string {
+  if (process.env.VERCEL_ENV === 'preview') {
+    const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+    if (previewHost) return `https://${previewHost}`;
+  }
+
   const explicit = process.env.NEXT_PUBLIC_SITE_URL;
   if (explicit) return explicit.replace(/\/$/, '');
 

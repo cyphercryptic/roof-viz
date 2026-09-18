@@ -1,6 +1,7 @@
 'use client';
 
 import { BeforeAfterSlider } from '@/components/visualize/BeforeAfterSlider';
+import Image from 'next/image';
 
 interface SharePageClientProps {
   beforeUrl: string;
@@ -38,9 +39,12 @@ export function SharePageClient({
         <div className="max-w-3xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             {whiteLabel && logoUrl ? (
-              <img
+              <Image
                 src={logoUrl}
                 alt={`${companyName} logo`}
+                width={32}
+                height={32}
+                unoptimized
                 className="h-8 w-8 rounded-lg object-contain"
               />
             ) : (
@@ -54,10 +58,10 @@ export function SharePageClient({
                 </svg>
               </div>
             )}
-            <span className="font-bold text-brand-brown">{companyName}</span>
+            <span className="font-bold text-brand-brown" style={whiteLabel ? { color: secondaryColor } : undefined}>{companyName}</span>
           </div>
           {!(whiteLabel && hidePoweredBy) && (
-            <span className="text-xs text-brand-brown/40">Powered by ExteriorViz</span>
+            <span className="text-xs text-brand-brown/70">Powered by ExteriorViz</span>
           )}
         </div>
       </header>
@@ -65,7 +69,7 @@ export function SharePageClient({
       {/* Content */}
       <main id="main-content" className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {customerName && (
-          <p className="text-sm text-brand-brown/50">Visualization for {customerName}</p>
+          <p className="text-sm text-brand-brown/70">Visualization for {customerName}</p>
         )}
 
         <BeforeAfterSlider beforeUrl={beforeUrl} afterUrl={afterUrl} />
@@ -73,7 +77,7 @@ export function SharePageClient({
         <div className="flex items-center justify-between px-1">
           <div>
             <p className="font-semibold text-brand-brown">{productName}</p>
-            <p className="text-sm text-brand-brown/50">
+            <p className="text-sm text-brand-brown/70">
               {productBrand} - {productColor}
             </p>
           </div>

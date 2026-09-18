@@ -6,6 +6,7 @@ import { stripe, PLANS } from '@/lib/stripe';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { billingCheckoutSchema, parseBody } from '@/lib/validation';
 import { getSiteUrl } from '@/lib/site';
+import { isMeteringConfigured } from '@/lib/metering';
 
 const existingBilling = () => NextResponse.json({
   error: 'You already have a subscription or payment in progress. Use Manage Billing to review it.',
@@ -25,10 +26,19 @@ export async function POST(request: NextRequest) {
     }
     const admin = createAdminClient();
     const rateCheck = await checkRateLimit(admin, user.id, '/api/billing/checkout', RATE_LIMITS.general);
-    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
     const parsed = parseBody(billingCheckoutSchema, await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const plan = parsed.data.plan;
+    if (plan === 'pay_per_use' && !isMeteringConfigured()) {
+      return NextResponse.json({ error: 'Pay As You Go is temporarily unavailable while billing delivery is configured.' }, { status: 503 });
+    }
+    if (plan === 'pay_per_use') {
+      const scheduler = await admin.rpc('metering_scheduler_is_healthy');
+      if (scheduler.error || !scheduler.data) {
+        return NextResponse.json({ error: 'Pay As You Go is temporarily unavailable while billing delivery is verified.' }, { status: 503 });
+      }
+    }
     const config = PLANS[plan];
     if (!config.stripePriceId) {
       return NextResponse.json({ error: 'This plan is not configured for checkout yet.' }, { status: 503 });

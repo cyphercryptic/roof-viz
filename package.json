@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node scripts/test-unified-domain.cjs && node scripts/test-onboarding.cjs && node --test tests/security/policy.test.mjs tests/security/webhook.test.mjs tests/security/invites.test.mjs tests/security/checkout.test.mjs",
-    "test:database": "node --test tests/security/database.test.mjs"
+    "test": "npm run check:secrets && node scripts/test-unified-domain.cjs && node scripts/test-onboarding.cjs && node scripts/test-image-boundary.cjs && node scripts/test-proposal-pdf.cjs && node --test tests/security/policy.test.mjs tests/security/webhook.test.mjs tests/security/invites.test.mjs tests/security/checkout.test.mjs tests/security/services.test.mjs tests/security/ui-recovery.test.mjs tests/security/usage.test.mjs tests/security/metering.test.mjs tests/security/metering-route.test.mjs",
+    "test:database": "node --test tests/security/database.test.mjs tests/security/rate-limit-database.test.mjs",
+    "check:secrets": "node scripts/check-source-secrets.mjs",
+    "prebuild": "npm run check:secrets"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

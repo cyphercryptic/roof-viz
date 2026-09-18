@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ProductCategory } from '@/types';
+import { ImageValidationError, normalizeImageBuffer } from '@/lib/image-normalization';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -14,27 +15,16 @@ const NON_RETRYABLE_FINISH = new Set(['SAFETY', 'PROHIBITED_CONTENT', 'IMAGE_SAF
 /** Thrown when the model refuses the request — the route should not retry. */
 export class ContentRefusedError extends Error {}
 
-/** Detect the actual image format — uploads may be JPEG/PNG/WebP. */
-function sniffMimeType(buffer: Buffer): string {
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return 'image/jpeg';
-  }
-  if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
-    return 'image/png';
-  }
-  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
-    return 'image/webp';
-  }
-  return 'image/jpeg';
+async function toImagePart(buffer: Buffer) {
+  return { inlineData: { mimeType: 'image/png', data: (await normalizeImageBuffer(buffer)).toString('base64') } };
 }
 
-function toImagePart(buffer: Buffer) {
-  return {
-    inlineData: {
-      mimeType: sniffMimeType(buffer),
-      data: buffer.toString('base64'),
-    },
-  };
+function isTransientError(error: unknown): boolean {
+  const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : undefined;
+  if (status) return [408, 429, 500, 502, 503, 504].includes(status);
+  const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  if (/\b(400|401|403|404|413|415|422)\b/.test(message)) return false;
+  return /\b(408|429|500|502|503|504|AbortError|TimeoutError|ECONNRESET|ETIMEDOUT|unavailable|overloaded)\b|fetch failed/i.test(message);
 }
 
 export interface RoofVisualizationInput {
@@ -76,12 +66,12 @@ export async function generateProductVisualization({
   });
   const target = category === 'window' ? 'window' : category === 'entry_door' ? 'entry door' : 'patio door';
   const parts = [
-    toImagePart(houseImage),
+    await toImagePart(houseImage),
     ...(referenceImage ? [
       { text: roofing
         ? 'The next image is the exact roof product swatch. Match its color and texture.'
         : `The next image is a ${target} style reference only. Match the style, shape and proportions; ignore reference colors. Edit only the ${target} in the FIRST source photo, using the color specified in the instructions.` },
-      toImagePart(referenceImage),
+      await toImagePart(referenceImage),
     ] : []),
     { text: prompt },
   ];
@@ -98,7 +88,10 @@ export async function generateProductVisualization({
 
       for (const part of candidate?.content?.parts ?? []) {
         if (part.inlineData?.data) {
-          return Buffer.from(part.inlineData.data, 'base64');
+          if (part.inlineData.mimeType && !/^image\/(png|jpeg|webp)$/.test(part.inlineData.mimeType)) {
+            throw new ImageValidationError('The provider did not return a supported image.');
+          }
+          return await normalizeImageBuffer(Buffer.from(part.inlineData.data, 'base64'), { maxBytes: 20 * 1024 * 1024, maxDimension: 4096 });
         }
       }
 
@@ -117,9 +110,9 @@ export async function generateProductVisualization({
       if (blockReason || (finishReason && NON_RETRYABLE_FINISH.has(finishReason))) {
         throw new ContentRefusedError(message);
       }
-      lastError = new Error(message);
+      throw new Error(message);
     } catch (error) {
-      if (error instanceof ContentRefusedError) throw error;
+      if (error instanceof ContentRefusedError || error instanceof ImageValidationError || !isTransientError(error)) throw error;
       lastError = error instanceof Error ? error : new Error(String(error));
     }
 
@@ -159,7 +152,7 @@ export async function fetchProductReference(url: string, allowedUrls: ReadonlySe
       }
       chunks.push(value);
     }
-    return size ? Buffer.concat(chunks) : null;
+    return size ? await normalizeImageBuffer(Buffer.concat(chunks), { maxBytes, maxDimension: 1600 }) : null;
   } catch {
     // A missing manufacturer image must not block the text-guided render.
     return null;

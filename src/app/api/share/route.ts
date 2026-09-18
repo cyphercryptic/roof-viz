@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
   // Rate limit by user
   const adminSupabase = createAdminClient();
   const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/share', RATE_LIMITS.general);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
-  const body = await request.json();
+  const body = await request.json().catch(() => null);
   const parsed = parseBody(shareSchema, body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -79,8 +79,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Create new share link (expires in 30 days)
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30);
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   const { data: link, error } = await supabase
     .from('shared_links')
@@ -93,8 +92,8 @@ export async function POST(request: NextRequest) {
     .select('token')
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !link) {
+    return NextResponse.json({ error: 'Could not create the share link. Please try again.' }, { status: 503 });
   }
 
   return NextResponse.json({ token: link.token });

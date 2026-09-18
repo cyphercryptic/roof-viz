@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
  * Download swatch images from manufacturer websites and upload to Supabase Storage.
- * Run: node scripts/download-swatches.mjs
+ * Run: doppler run -- node scripts/download-swatches.mjs
  */
 
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
-const SUPABASE_URL = 'https://gqqvxzxzuaevsuwazaqx.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxcXZ4enh6dWFldnN1d2F6YXF4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDY0NjMyOSwiZXhwIjoyMDkwMjIyMzI5fQ.UVeZKIPQZa0ho-pgMEO2pENEML-L1cCGozE-zIh72m0';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  throw new Error('Run this script with Doppler-provided Supabase configuration.');
+}
 const BUCKET = 'product-swatches';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);

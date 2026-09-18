@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { notFound } from 'next/navigation';
 import { SharePageClient } from './SharePageClient';
-import { isTenantMediaPath } from '@/lib/security-policy';
+import { hasGenerationAccess, isTenantMediaPath } from '@/lib/security-policy';
+import { canShare } from '@/lib/plan-features';
 
 // Rendered per request: the view counter increments and the signed image URLs
 // below must be freshly minted so expiry/revocation of the link actually bites.
@@ -36,7 +37,7 @@ export default async function SharePage({ params }: SharePageProps) {
   }
 
   // Check expiry
-  if (link.expires_at && new Date(link.expires_at) < new Date()) {
+  if (!link.expires_at || !Number.isFinite(Date.parse(link.expires_at)) || new Date(link.expires_at) <= new Date()) {
     notFound();
   }
 
@@ -58,11 +59,12 @@ export default async function SharePage({ params }: SharePageProps) {
   // Check if tenant has Business Pro for white-label
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('plan')
+    .select('plan, status, current_period_end')
     .eq('tenant_id', link.tenant_id)
     .single();
 
-  const isWhiteLabel = subscription?.plan === 'business_pro';
+  if (!subscription || !hasGenerationAccess(subscription) || !canShare(subscription.plan)) notFound();
+  const isWhiteLabel = subscription.plan === 'business_pro';
 
   await supabase
     .from('shared_links')
@@ -89,7 +91,7 @@ export default async function SharePage({ params }: SharePageProps) {
     <SharePageClient
       beforeUrl={beforeData.signedUrl}
       afterUrl={afterData.signedUrl}
-      productName={viz.products?.name || 'Roofing Product'}
+      productName={viz.products?.name || 'Exterior Product'}
       productBrand={viz.products?.brand || ''}
       productColor={viz.products?.color || ''}
       customerName={viz.customer_name}

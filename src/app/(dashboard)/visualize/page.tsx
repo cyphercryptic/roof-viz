@@ -236,14 +236,26 @@ export default function VisualizePage() {
 
   async function handleDownload() {
     if (!activeResult) return;
-    const response = await fetch(activeResult.resultUrl);
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `exterior-visualization-${activeResult.id}.png`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    try {
+      let response = await fetch(activeResult.resultUrl);
+      if (!response.ok) {
+        // A presentation may outlive its signed URL. Renew through tenant-scoped
+        // storage access instead of downloading the expired-link error as a PNG.
+        const { data: visualization, error } = await supabase.from('visualizations').select('result_image_path').eq('id', activeResult.id).single();
+        if (error || !visualization?.result_image_path) throw new Error('This preview is unavailable. Reopen it from Saved previews.');
+        const signed = await supabase.storage.from('visualizations').createSignedUrl(visualization.result_image_path, 3600);
+        if (signed.error || !signed.data?.signedUrl) throw new Error('Could not refresh the download link. Please try again.');
+        response = await fetch(signed.data.signedUrl);
+      }
+      if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) throw new Error('Could not download the image. Please try again.');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `exterior-visualization-${activeResult.id}.png`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not download this preview. Check your connection and try again.'); }
   }
 
   return (
@@ -252,7 +264,7 @@ export default function VisualizePage() {
         <h1 className="text-2xl font-bold">Home Visualization</h1>
         <p className="text-brand-brown/50">
           {step === 'upload' && 'Upload a photo of the house to get started'}
-          {step === 'configure' && 'Select a roofing product to visualize'}
+          {step === 'configure' && 'Select a product to visualize'}
           {step === 'generating' && 'AI is generating your visualization...'}
           {step === 'result' && 'Drag the slider to compare before & after'}
         </p>
@@ -338,7 +350,7 @@ export default function VisualizePage() {
           <Card>
             <CardContent className="space-y-4 p-6">
               <div className="space-y-3">
-                <CategorySelector selected={category} onSelect={(nextCategory) => { setCategory(nextCategory); setSelectedProductId(''); setPerspective('exterior'); }} />
+                <CategorySelector selected={category} onSelect={(nextCategory) => { if (nextCategory === category) return; setCategory(nextCategory); setSelectedProductId(''); setPerspective('exterior'); }} />
                 <p className="text-sm font-medium text-brand-orange">Selected: {CATEGORY_LABELS[category]}</p>
               </div>
               {/* Product selection */}

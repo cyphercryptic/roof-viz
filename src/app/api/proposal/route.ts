@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { createProposalPdf } from '@/lib/proposal-pdf';
 import { checkRateLimit, RATE_LIMITS, rateLimitResponse } from '@/lib/rate-limit';
 import { proposalSchema, parseBody } from '@/lib/validation';
-import { isTenantMediaPath } from '@/lib/security-policy';
-import { CATEGORY_LABELS, type ProductCategory } from '@/types';
+import { isTenantMediaPath, hasGenerationAccess } from '@/lib/security-policy';
 
 const PRO_PLANS = ['pro', 'business', 'business_pro'];
-
-// The standard Helvetica fonts only encode WinAnsi (≈Latin-1). A customer named
-// "Łukasz" or an address with CJK characters made drawText throw and the whole
-// proposal 500. Fold newlines, strip combining accents, and replace anything
-// still unencodable instead of crashing.
-function pdfSafe(text: string): string {
-  return text
-    .replace(/\s+/g, ' ')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\x20-\x7E\xA1-\xFF]/g, '?')
-    .trim();
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,11 +32,11 @@ export async function POST(request: NextRequest) {
 
     // Rate limit by user
     const rateCheck = await checkRateLimit(adminSupabase, user.id, '/api/proposal', RATE_LIMITS.general);
-    if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+    if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
     const { data: subscription } = await adminSupabase
       .from('subscriptions')
-      .select('plan, status')
+      .select('plan, status, current_period_end')
       .eq('tenant_id', profile.tenant_id)
       .single();
 
@@ -61,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+    if (!hasGenerationAccess(subscription)) {
       return NextResponse.json(
         { error: 'Your subscription is not active. Please update your billing.', code: 'SUBSCRIPTION_INACTIVE' },
         { status: 403 }
@@ -69,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Parse and validate request body
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = parseBody(proposalSchema, body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -86,6 +72,10 @@ export async function POST(request: NextRequest) {
 
     if (vizError || !visualization) {
       return NextResponse.json({ error: 'Visualization not found' }, { status: 404 });
+    }
+
+    if (visualization.product && visualization.product.tenant_id !== profile.tenant_id) {
+      return NextResponse.json({ error: 'Visualization product is unavailable.' }, { status: 404 });
     }
 
     if (visualization.status !== 'completed' || !visualization.result_image_path) {
@@ -131,6 +121,7 @@ export async function POST(request: NextRequest) {
         const logoPrefix = `/storage/v1/object/public/logos/${profile.tenant_id}/`;
         if (logoUrl.origin === storageOrigin && logoUrl.pathname.startsWith(logoPrefix)) {
           const objectPath = decodeURIComponent(logoUrl.pathname.slice('/storage/v1/object/public/logos/'.length));
+          if (!isTenantMediaPath(objectPath, profile.tenant_id)) throw new Error('Invalid logo path');
           const { data } = await adminSupabase.storage.from('logos').download(objectPath);
           if (data && data.size <= 5 * 1024 * 1024) logoBytes = new Uint8Array(await data.arrayBuffer());
         }
@@ -139,269 +130,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 7. Generate PDF
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([612, 792]); // US Letter
-    const { width, height } = page.getSize();
-
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-    const margin = 50;
-    let yPos = height - margin;
-
-    // --- Company logo/name ---
-    if (logoBytes) {
-      try {
-        let logoImage;
-        try {
-          logoImage = await pdfDoc.embedPng(logoBytes);
-        } catch {
-          logoImage = await pdfDoc.embedJpg(logoBytes);
-        }
-        const logoScale = Math.min(120 / logoImage.width, 40 / logoImage.height);
-        const logoDims = logoImage.scale(logoScale);
-        page.drawImage(logoImage, {
-          x: margin,
-          y: yPos - logoDims.height,
-          width: logoDims.width,
-          height: logoDims.height,
-        });
-        yPos -= logoDims.height + 10;
-      } catch {
-        // If both PNG and JPEG embed fail, just show name
-      }
-    }
-
-    if (tenant?.name) {
-      page.drawText(pdfSafe(tenant.name), {
-        x: margin,
-        y: yPos - 20,
-        size: 18,
-        font: fontBold,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-      yPos -= 35;
-    }
-
-    // --- Divider line ---
-    page.drawLine({
-      start: { x: margin, y: yPos },
-      end: { x: width - margin, y: yPos },
-      thickness: 1,
-      color: rgb(0.8, 0.8, 0.8),
+    const pdfBytes = await createProposalPdf({
+      companyName: tenant?.name,
+      customerName: visualization.customer_name,
+      customerAddress: visualization.customer_address,
+      originalImage: originalImageBytes,
+      resultImage: resultImageBytes,
+      logoImage: logoBytes,
+      product: visualization.product,
     });
-    yPos -= 25;
-
-    // --- Title ---
-    page.drawText('Roof Visualization Proposal', {
-      x: margin,
-      y: yPos - 20,
-      size: 22,
-      font: fontBold,
-      color: rgb(0.15, 0.15, 0.15),
-    });
-    yPos -= 45;
-
-    // --- Customer info and date ---
-    const dateStr = new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-
-    page.drawText(`Date: ${dateStr}`, {
-      x: margin,
-      y: yPos,
-      size: 10,
-      font: fontRegular,
-      color: rgb(0.3, 0.3, 0.3),
-    });
-    yPos -= 16;
-
-    if (visualization.customer_name) {
-      page.drawText(pdfSafe(`Customer: ${visualization.customer_name}`), {
-        x: margin,
-        y: yPos,
-        size: 10,
-        font: fontRegular,
-        color: rgb(0.3, 0.3, 0.3),
-      });
-      yPos -= 16;
-    }
-
-    if (visualization.customer_address) {
-      page.drawText(pdfSafe(`Address: ${visualization.customer_address}`), {
-        x: margin,
-        y: yPos,
-        size: 10,
-        font: fontRegular,
-        color: rgb(0.3, 0.3, 0.3),
-      });
-      yPos -= 16;
-    }
-
-    yPos -= 15;
-
-    // --- Before / After images side by side ---
-    const imageAreaWidth = width - margin * 2;
-    const imageWidth = (imageAreaWidth - 20) / 2; // 20px gap between images
-    const imageHeight = 180;
-
-    // Labels
-    page.drawText('Before', {
-      x: margin,
-      y: yPos,
-      size: 11,
-      font: fontBold,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-    page.drawText('After', {
-      x: margin + imageWidth + 20,
-      y: yPos,
-      size: 11,
-      font: fontBold,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-    yPos -= 8;
-
-    // Embed images as PNG
-    let originalImage;
-    let resultImage;
-    try {
-      originalImage = await pdfDoc.embedPng(originalImageBytes);
-    } catch {
-      // Fall back to JPEG if PNG embed fails
-      originalImage = await pdfDoc.embedJpg(originalImageBytes);
-    }
-    try {
-      resultImage = await pdfDoc.embedPng(resultImageBytes);
-    } catch {
-      resultImage = await pdfDoc.embedJpg(resultImageBytes);
-    }
-
-    // Draw original (before) image
-    page.drawImage(originalImage, {
-      x: margin,
-      y: yPos - imageHeight,
-      width: imageWidth,
-      height: imageHeight,
-    });
-
-    // Draw result (after) image
-    page.drawImage(resultImage, {
-      x: margin + imageWidth + 20,
-      y: yPos - imageHeight,
-      width: imageWidth,
-      height: imageHeight,
-    });
-
-    yPos -= imageHeight + 25;
-
-    // --- Product Details ---
-    const product = visualization.product;
-    if (product) {
-      page.drawText('Product Details', {
-        x: margin,
-        y: yPos,
-        size: 14,
-        font: fontBold,
-        color: rgb(0.15, 0.15, 0.15),
-      });
-      yPos -= 22;
-
-      const details: [string, string][] = [
-        ['Category', CATEGORY_LABELS[(product.category || 'roofing') as ProductCategory] || 'Exterior'],
-        ['Name', pdfSafe(product.name)],
-        ['Brand', pdfSafe(product.brand)],
-        ['Color', pdfSafe(product.color)],
-      ];
-      if (product.style) {
-        details.push(['Style', pdfSafe(product.style)]);
-      }
-
-      for (const [label, value] of details) {
-        page.drawText(`${label}:`, {
-          x: margin,
-          y: yPos,
-          size: 10,
-          font: fontBold,
-          color: rgb(0.3, 0.3, 0.3),
-        });
-        page.drawText(value, {
-          x: margin + 60,
-          y: yPos,
-          size: 10,
-          font: fontRegular,
-          color: rgb(0.2, 0.2, 0.2),
-        });
-        yPos -= 16;
-      }
-
-      // Product description
-      if (product.description) {
-        yPos -= 8;
-        page.drawText('Description:', {
-          x: margin,
-          y: yPos,
-          size: 10,
-          font: fontBold,
-          color: rgb(0.3, 0.3, 0.3),
-        });
-        yPos -= 16;
-
-        // Wrap description text at ~80 chars per line
-        const maxLineWidth = width - margin * 2;
-        const words = pdfSafe(product.description).split(' ');
-        let line = '';
-        for (const word of words) {
-          const testLine = line ? `${line} ${word}` : word;
-          const testWidth = fontRegular.widthOfTextAtSize(testLine, 10);
-          if (testWidth > maxLineWidth) {
-            page.drawText(line, {
-              x: margin,
-              y: yPos,
-              size: 10,
-              font: fontRegular,
-              color: rgb(0.3, 0.3, 0.3),
-            });
-            yPos -= 14;
-            line = word;
-          } else {
-            line = testLine;
-          }
-        }
-        if (line) {
-          page.drawText(line, {
-            x: margin,
-            y: yPos,
-            size: 10,
-            font: fontRegular,
-            color: rgb(0.3, 0.3, 0.3),
-          });
-          yPos -= 14;
-        }
-      }
-    }
-
-    // --- Footer ---
-    page.drawLine({
-      start: { x: margin, y: 50 },
-      end: { x: width - margin, y: 50 },
-      thickness: 0.5,
-      color: rgb(0.8, 0.8, 0.8),
-    });
-
-    page.drawText('ExteriorViz | AI concept preview. Verify products and measurements before ordering.', {
-      x: margin,
-      y: 35,
-      size: 8,
-      font: fontRegular,
-      color: rgb(0.6, 0.6, 0.6),
-    });
-
-    // 8. Serialize and return PDF
-    const pdfBytes = await pdfDoc.save();
 
     const filename = `proposal-${visualization_id}.pdf`;
 

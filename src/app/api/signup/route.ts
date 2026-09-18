@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   // Rate limit by IP (unauthenticated)
   const ip = getClientIp(request);
   const rateCheck = await checkRateLimit(supabase, ip, '/api/signup', RATE_LIMITS.auth);
-  if (!rateCheck.allowed) return rateLimitResponse(rateCheck.retryAfterSeconds);
+  if (!rateCheck.allowed) return rateLimitResponse(rateCheck);
 
   const body = await request.json().catch(() => null);
   const parsed = parseBody(signupSchema, body);
