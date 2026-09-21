@@ -1,5 +1,7 @@
 # ExteriorViz
 
+Start each working session with [docs/HANDOFF.md](docs/HANDOFF.md), the current project state and ordered next actions.
+
 Roofing, window and door visualization for contractor sales teams. This unified Next.js application combines RoofViz's private customer-photo storage and shared workspace foundation with WindowViz's category-aware products and configurators.
 
 ## Project location
