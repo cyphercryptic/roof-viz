@@ -1,3 +1,5 @@
+> **Superseded by [docs/HANDOFF.md](HANDOFF.md)** for current status (current state lives there; history through 2026-09-21 lives here).
+
 # Integration and full code-review validation — 18 September 2026
 
 The unified app was checked without paid image generation, live payments, outbound email or customer-data writes. The full follow-up audit starts at commit `fd5d2d0` on `integration/unified-viz`; findings and remaining risks are in [CODE-REVIEW.md](CODE-REVIEW.md).

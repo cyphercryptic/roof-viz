@@ -6,8 +6,8 @@
 **Branch:** `integration/unified-viz` · **Latest application commit:** `370df61` (after integration `fd5d2d0`). Original production/main and Window data have not been cut over.
 
 ## Start here (next session)
-1. Fetch the RoofViz repo and work on `integration/unified-viz`. Check local changes and remote drift before editing; the original `main` checkout is not the unified app. Read this handoff and [CODE-REVIEW.md](CODE-REVIEW.md).
-2. Prioritize [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md): retirement of the previously committed Roof service-role key remains unverified. Source cleanup does not revoke historical copies. Inventory and safely migrate all consumers before deactivation; do not print keys or rewrite shared Git history.
+1. Prioritize [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md): retirement of the previously committed Roof service-role key remains unverified. Source cleanup does not revoke historical copies. Inventory and safely migrate all consumers before deactivation; do not print keys or rewrite shared Git history.
+2. Fetch the RoofViz repo and work on `integration/unified-viz`. Check local changes and remote drift before editing; the original `main` checkout is not the unified app. Read this handoff and [CODE-REVIEW.md](CODE-REVIEW.md).
 3. Follow [UNIFIED-CUTOVER.md](UNIFIED-CUTOVER.md): confirm backups/current state, then coordinate manual SQL Editor application of 019–023 and a compatible frontend. The preview shares the Roof backend; do not treat it as an isolated test database.
 4. Verify auth redirects/delivery, controlled account and browser flows, billing and image fidelity after setup. Keep PAYG disabled until its hourly worker, heartbeat and Stripe meter are verified. Plan Window account/history mapping before moving existing users.
 
@@ -22,19 +22,19 @@
 - [ ] Perform real desktop/mobile/keyboard browser QA, authenticated cross-tenant checks and staged provider-fidelity tests across all four categories and relevant perspectives. Offline mocks/HTTP checks do not prove these flows; no paid model calls were made.
 - [ ] Exercise independent concurrent clients for quota, invitation and billing races. PGlite executes real SQL but serializes its connections.
 - [ ] Resolve remaining lower-priority catalog consistency risk: simultaneous identical imports can duplicate products without a database uniqueness constraint.
-- [ ] If international PDF text is required, embed a Unicode font; current Latin-font export safely substitutes unsupported characters.
+- [ ] If international PDF text is required, embed a Unicode font; current Latin-font export safely substitutes unsupported characters. Confirm whether clients need additional manufacturer-option controls; the form exposes only part of the optional attribute model.
 - [ ] Minor UI polish: mobile landing-menu Escape dismissal should restore focus to its trigger; complete this during keyboard QA.
 - [ ] Choose final branding/custom URL when desired (working name ExteriorViz; Vercel hostname is sufficient for preview), promote only after launch gates pass, and recheck the branch alias after future pushes.
 
 ## Last session (2026-09-21, Connor Franklin)
 
-Wrapped the combined project and incorporated the later review already present in the repo, rather than freezing the earlier integration snapshot. Both local integration and original Roof checkouts were clean. `git fetch origin` confirmed the integration branch synchronized with its remote at `370df61` before this documentation-only wrap.
+Completed the documentation-only continuation wrap. Concurrent session commit `ad51b77` arrived during the wrap; its handoff was used as the base, all open items were retained, and its Last session block was archived in [HANDOFF_LOG.md](HANDOFF_LOG.md).
 
-- `fd5d2d0`: merged roofing, windows, sliding glass doors and entry doors into one company workspace, category-aware catalog/generation flow, unified website, account flows and initial security regressions. Existing source deployments/data were preserved.
-- `370df61`: follow-up review hardened access/billing/database behavior, image/PDF handling, account/gallery recovery, atomic rate limits and durable metering; added migrations 021–023 and removed embedded privileged credentials from current maintenance-script source.
-- Prior verification recorded on **2026-09-18**: 67 Node checks + 33 PGlite database checks, four fixture suites including 503 catalog variants, TypeScript, production webpack build, ESLint with zero warnings, source credential guard, and dependency audit with zero reported vulnerabilities. These suites were **not rerun for the documentation-only wrap**; see [VALIDATION.md](VALIDATION.md) for evidence and limits.
-- Fresh verification on **2026-09-21**: Vercel CLI reports the hardening preview `dpl_4UywUiUHHDBSkv7sJPt7SzZLo4HV` **Ready**; protected `vercel curl /` returned **200**. Verified immutable URL: https://roof-78r4imih9-cyphercryptics-projects.vercel.app. This supersedes the old queued-deployment note. No new authenticated/browser/provider checks were performed.
-- Created the first portable handoff and history index. No production cutover, schema/data changes, credential mutations, charges, outbound emails or paid model generations were performed during wrap.
+- Application commits remain `fd5d2d0` (integration) and `370df61` (audit fixes). No implementation was changed during wrap.
+- Fresh Vercel inspection confirmed `dpl_4UywUiUHHDBSkv7sJPt7SzZLo4HV` **READY** with the stable preview alias. Immutable URL: https://roof-78r4imih9-cyphercryptics-projects.vercel.app.
+- Protected HTTP checks: `/` returned **200** with the ExteriorViz title; `/api/billing/usage` returned **401** and `Unauthorized` without an application login. This supersedes the stale queued-deployment note; authenticated browser flows remain unverified.
+- Source credential guard passed again, and documentation links/whitespace were checked. The **100 tests plus four fixture suites**, TypeScript, ESLint with zero warnings, webpack build and dependency audit results remain evidence from **2026-09-18**; those full checks were not rerun for documentation changes.
+- No production promotion, SQL/data/account migration, credential mutation, outbound message, paid generation or payment change was performed. Credential retirement and live configuration remain unverified.
 
 ## Gotchas (durable)
 - Roof is the canonical backend: `gqqvxzxzuaevsuwazaqx`. Window remains separate: `gpvpfesbdcnhsyylvwtp`. Do not replay Window's historical SQL into Roof; the additive unified migrations preserve roofing fields.
@@ -44,6 +44,9 @@ Wrapped the combined project and incorporated the later review already present i
 - The existing Vercel project is `roof-viz`; pushing this feature branch creates a protected preview, not a new isolated backend or production cutover. Use `vercel curl` for protected HTTP checks; keep deployment protection enabled.
 - Local dependencies may be symlinked in a worktree; use webpack for local dev/build. On a fresh machine, install from the existing lockfile. Read installed Next.js 16 docs before code changes; current error boundaries use `retry`.
 - The 503 catalog variants are choices available to import, not prepopulated tenant products. Each generation changes one category; a simultaneous whole-house makeover is not implemented.
+
+- Missing migration 022 deliberately makes rate-limited routes return 503. Do not weaken the guard to make an unconfigured preview appear functional.
+- Disabling PAYG enrollment flags leaves the authenticated worker available to drain existing usage; retain the scheduler and credentials while a backlog exists.
 
 ## How to verify
 

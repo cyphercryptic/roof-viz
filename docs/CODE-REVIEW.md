@@ -1,3 +1,5 @@
+> **Superseded by [docs/HANDOFF.md](HANDOFF.md)** for current status (current state lives there; history through 2026-09-21 lives here).
+
 # Full code review — 18 September 2026
 
 Scope: the canonical unified app in `integration/unified-viz`, starting at `fd5d2d0`. Three specialist agents reviewed security/billing/database behavior, visualization/catalog/PDF behavior, and account/interface recovery. The integration lead reviewed API errors, rate limiting, deployment URLs, dependencies, instrumentation and the combined changes. This is a code audit with targeted reproductions, not a penetration-test certification.
