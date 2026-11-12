@@ -1,18 +1,18 @@
 # ExteriorViz — Handoff
 
-**Status:** Unified app and follow-up hardening are pushed; review preview is Ready. Production activation remains blocked by credential retirement, manual schema changes and live-service verification.
-**Last session:** 2026-09-21 — Connor Franklin
+**Status:** Unified app and hardening are pushed; review preview is Ready. The exposed Roof service-role key is confirmed active (2026-11-12); rotation awaits Supabase management access. Production activation also requires manual schema changes and live-service verification.
+**Last session:** 2026-11-12 — Codex for Connor
 **Preview:** https://roof-viz-git-integration-unified-viz-cyphercryptics-projects.vercel.app · **Repo:** https://github.com/cyphercryptic/roof-viz · **History:** [HANDOFF_LOG.md](HANDOFF_LOG.md)
 **Branch:** `integration/unified-viz` · **Latest application commit:** `370df61` (after integration `fd5d2d0`). Original production/main and Window data have not been cut over.
 
 ## Start here (next session)
-1. Prioritize [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md): retirement of the previously committed Roof service-role key remains unverified. Source cleanup does not revoke historical copies. Inventory and safely migrate all consumers before deactivation; do not print keys or rewrite shared Git history.
+1. Prioritize [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md): the previously committed Roof service-role key is confirmed active. Obtain Roof-scoped management access, then replace and retire it. Source cleanup does not revoke historical copies. Inventory and safely migrate all consumers before deactivation; do not print keys or rewrite shared Git history.
 2. Fetch the RoofViz repo and work on `integration/unified-viz`. Check local changes and remote drift before editing; the original `main` checkout is not the unified app. Read this handoff and [CODE-REVIEW.md](CODE-REVIEW.md).
 3. Follow [UNIFIED-CUTOVER.md](UNIFIED-CUTOVER.md): confirm backups/current state, then coordinate manual SQL Editor application of 019–023 and a compatible frontend. The preview shares the Roof backend; do not treat it as an isolated test database.
 4. Verify auth redirects/delivery, controlled account and browser flows, billing and image fidelity after setup. Keep PAYG disabled until its hourly worker, heartbeat and Stripe meter are verified. Plan Window account/history mapping before moving existing users.
 
 ## Open items
-- [ ] Replace and retire the exposed Roof service-role credential, verify old-key rejection/new-key access, and review access logs. Historical/original copies remain exposed; credential validity/retirement was not tested.
+- [ ] Replace and retire the exposed Roof service-role credential, verify old-key rejection/new-key access, and review access logs. Historical/original copies remain exposed; a read-only HTTP check confirmed the key is still accepted on 2026-11-12.
 - [ ] Obtain a recoverable database/object backup, repeat live inventory, and manually apply migrations 019–023 in order during a coordinated cutover. Live schema, RLS and Supabase Storage/PostgREST behavior remain unverified after these changes.
 - [ ] Verify the preview/production Supabase Auth allowlist and actual signup, confirmation, onboarding, password recovery and invitation flows with controlled accounts.
 - [ ] Configure application email (`RESEND_API_KEY`, verified `EMAIL_FROM`) and verify client delivery. Test Supabase Auth email separately; it uses a different delivery path.
@@ -26,15 +26,17 @@
 - [ ] Minor UI polish: mobile landing-menu Escape dismissal should restore focus to its trigger; complete this during keyboard QA.
 - [ ] Choose final branding/custom URL when desired (working name ExteriorViz; Vercel hostname is sufficient for preview), promote only after launch gates pass, and recheck the branch alias after future pushes.
 
-## Last session (2026-09-21, Connor Franklin)
+## Last session (2026-11-12, Codex for Connor)
 
-Completed the documentation-only continuation wrap. Concurrent session commit `ad51b77` arrived during the wrap; its handoff was used as the base, all open items were retained, and its Last session block was archived in [HANDOFF_LOG.md](HANDOFF_LOG.md).
+Investigated the Supabase credential incident at Connor's request. **Rotation is not complete:** the historical exposed Roof service-role key was accepted by a read-only request (HTTP 200). Supabase management access is required to create replacements and disable legacy API keys; no management token or connected Supabase management tool was available, and the browser access host was unavailable. Connor was asked to supply a short-lived, Roof-only management token through Doppler, not chat.
 
-- Application commits remain `fd5d2d0` (integration) and `370df61` (audit fixes). No implementation was changed during wrap.
-- Fresh Vercel inspection confirmed `dpl_4UywUiUHHDBSkv7sJPt7SzZLo4HV` **READY** with the stable preview alias. Immutable URL: https://roof-78r4imih9-cyphercryptics-projects.vercel.app.
-- Protected HTTP checks: `/` returned **200** with the ExteriorViz title; `/api/billing/usage` returned **401** and `Unauthorized` without an application login. This supersedes the stale queued-deployment note; authenticated browser flows remain unverified.
-- Source credential guard passed again, and documentation links/whitespace were checked. The **100 tests plus four fixture suites**, TypeScript, ESLint with zero warnings, webpack build and dependency audit results remain evidence from **2026-09-18**; those full checks were not rerun for documentation changes.
-- No production promotion, SQL/data/account migration, credential mutation, outbound message, paid generation or payment change was performed. Credential retirement and live configuration remain unverified.
+- Confirmed Roof `dev` and `prd` in Doppler and Vercel's shared development/preview/production environment entry still use the exposed server key. Their client keys are also legacy JWTs. Window `dev`/`prd` point to the separate Window project and do not use the exposed Roof key.
+- Identified an additional consumer: active n8n `WF-MAINT-01: Build Health Monitor` (`gsdVGiEr9orOdbnN`), node `HTTP - RoofViz Database`, credential `Bar9 Monitor roofviz DB` (`8QGs2Tv8bh2WUanm`, `supabaseApi`). Credential metadata confirms it is used only by that workflow. Update this credential during rotation without changing the workflow graph.
+- Vercel CLI access works with scope `cyphercryptics-projects`; the connected Vercel plugin returned project-not-found for the same known project. Production is Ready at `dpl_J3WPj2RHtvA6mkyGfP8FV3TEZHPY` / commit `9d88f21`; current unified preview is Ready at `dpl_4dB92c9bdD2hVmQvisefobnjvnuL` / commit `310ff9f`. Rebuild each source with replacement keys; do not promote the unified app as part of credential replacement.
+- Source/client constructors accept replacement API keys through the existing environment-variable names. The original Roof checkout also has ignored `.env.local` Supabase variables; normal development should use Doppler so stale values are not used.
+- Fresh local verification: source credential guard, four fixture suites, **68 Node tests**, ESLint and TypeScript passed. No production build, PGlite suite, browser flow, paid generation, email or checkout test was run.
+- Preserved pre-existing uncommitted changes in `src/app/page.tsx`, `src/components/landing/Landing.module.css`, and `src/components/landing/MobileNav.tsx`: landing pricing and Escape-focus restoration. The handoff's mobile-menu item is implemented locally but still needs browser review and a separate commit.
+- No keys, app configuration, workflow, schema, account or production deployment were changed. A documentation push can create a new branch preview automatically. No secret values were printed or saved in this report. See [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md) for the current consumer inventory and continuation steps.
 
 ## Gotchas (durable)
 - Roof is the canonical backend: `gqqvxzxzuaevsuwazaqx`. Window remains separate: `gpvpfesbdcnhsyylvwtp`. Do not replay Window's historical SQL into Roof; the additive unified migrations preserve roofing fields.

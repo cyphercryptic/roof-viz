@@ -2,6 +2,18 @@
 
 ## Last session (2026-09-21, Connor Franklin)
 
+Completed the documentation-only continuation wrap. Concurrent session commit `ad51b77` arrived during the wrap; its handoff was used as the base, all open items were retained, and its Last session block was archived in [HANDOFF_LOG.md](HANDOFF_LOG.md).
+
+- Application commits remain `fd5d2d0` (integration) and `370df61` (audit fixes). No implementation was changed during wrap.
+- Fresh Vercel inspection confirmed `dpl_4UywUiUHHDBSkv7sJPt7SzZLo4HV` **READY** with the stable preview alias. Immutable URL: https://roof-78r4imih9-cyphercryptics-projects.vercel.app.
+- Protected HTTP checks: `/` returned **200** with the ExteriorViz title; `/api/billing/usage` returned **401** and `Unauthorized` without an application login. This supersedes the stale queued-deployment note; authenticated browser flows remain unverified.
+- Source credential guard passed again, and documentation links/whitespace were checked. The **100 tests plus four fixture suites**, TypeScript, ESLint with zero warnings, webpack build and dependency audit results remain evidence from **2026-09-18**; those full checks were not rerun for documentation changes.
+- No production promotion, SQL/data/account migration, credential mutation, outbound message, paid generation or payment change was performed. Credential retirement and live configuration remain unverified.
+
+---
+
+## Last session (2026-09-21, Connor Franklin)
+
 Wrapped the combined project and incorporated the later review already present in the repo, rather than freezing the earlier integration snapshot. Both local integration and original Roof checkouts were clean. `git fetch origin` confirmed the integration branch synchronized with its remote at `370df61` before this documentation-only wrap.
 
 - `fd5d2d0`: merged roofing, windows, sliding glass doors and entry doors into one company workspace, category-aware catalog/generation flow, unified website, account flows and initial security regressions. Existing source deployments/data were preserved.
