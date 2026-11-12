@@ -1,30 +1,65 @@
-# Required: replace the exposed Roof Supabase service credential
+# Roof Supabase credential rotation
 
-The full code audit found a legacy `service_role` JWT embedded in both tracked `scripts/download-swatches.mjs` and `scripts/download-swatches-2.mjs`. Its decoded project reference is `gqqvxzxzuaevsuwazaqx` (Roof). The credential value was not printed or copied into this report. Current source now requires Doppler-provided environment variables and the build/test pipeline scans for known private credentials.
+**Status (2026-11-12): replacement API keys are deployed and the exposed legacy key is rejected on all tested routes. Legacy JWT signing-secret revocation remains pending additional management permission.** Target: Roof Supabase `gqqvxzxzuaevsuwazaqx`, verified from both Doppler configurations. Window remains separate and unchanged.
 
-**Source removal does not revoke the credential.** Earlier commits and independent clones retain it. **On 2026-11-12, the historical exposed key was confirmed active:** a HEAD request to the Roof REST API (`tenants?select=id&limit=0`) returned HTTP 200 without retrieving row data. No replacement key has been created and no legacy key has been disabled. Rotation remains incomplete because Supabase management authentication was unavailable.
+## Incident and completed changes
 
-## Verified consumers and access (2026-11-12)
+A legacy `service_role` JWT appeared in tracked `scripts/download-swatches.mjs` and `scripts/download-swatches-2.mjs`. Source cleanup alone did not revoke historical copies. A read-only check on 2026-11-12 initially confirmed that the historical key was accepted (HTTP 200) and matched Roof Doppler and Vercel settings. Connor authorized replacement and retirement and confirmed that there are no contractor customers yet.
 
-- **Doppler:** `roofviz` configurations `dev` and `prd` both use the historical exposed value in `SUPABASE_SERVICE_ROLE_KEY`; their `NEXT_PUBLIC_SUPABASE_ANON_KEY` values are legacy JWTs. Project URL confirms `gqqvxzxzuaevsuwazaqx`. Both configurations are marked locked; use the authorized project-specific configuration controls if an update is rejected.
-- **Vercel:** project `roof-viz` / `prj_V1vaCRRspMWAfxptfGCAg1iPXTWD`, team `team_CmrLwAbsrBBsaooLvE8TgHU2`. The server-key and client-key environment entries each cover production, preview and development and match Doppler `prd`. Their `configurationId` is null: do not assume Doppler synchronization has updated Vercel; verify actual equality before rebuilding. CLI access works; the connected plugin's account could not resolve this project.
-- **Deployments:** rebuild original production from `main` commit `9d88f21` (current deployment `dpl_J3WPj2RHtvA6mkyGfP8FV3TEZHPY`) and unified preview from `integration/unified-viz` commit `310ff9f` (current deployment `dpl_4dB92c9bdD2hVmQvisefobnjvnuL`). Key rotation does not require a unified production cutover.
-- **n8n:** active `WF-MAINT-01: Build Health Monitor` (`gsdVGiEr9orOdbnN`) requests the Roof REST API using node `HTTP - RoofViz Database` and Supabase credential `Bar9 Monitor roofviz DB` (`8QGs2Tv8bh2WUanm`). This credential is used only by that workflow. Its secret value was not retrieved. Update credential fields `host` and `serviceRole` with the replacement; preserve appropriate domain restrictions. Do not execute the whole monitor merely to test this, because it can send email.
-- **Local scripts:** this unified checkout's swatch scripts already use Doppler-provided variables. Original Roof has ignored `.env.local` Supabase variables; use Doppler for local runs and remove stale local overrides when completing rotation. Old source/history copies become harmless as API credentials only after legacy-key rejection is verified.
-- **Window:** its Doppler `dev` and `prd` point to `gpvpfesbdcnhsyylvwtp` and use a different server key. Do not rotate Window credentials for this incident.
-- **Access blocker:** no `SUPABASE_ACCESS_TOKEN` was available in this session's environment or Roof Doppler config; no usable Supabase management connector was connected; browser inventory reported its access host unavailable. Data API credentials cannot manage project API keys. Connor was asked to create a short-lived token scoped only to Roof with **API Keys: Read-write** and **API Key Secrets: Read**, and provide it via Doppler `roofviz/dev` as `SUPABASE_ACCESS_TOKEN`, never through chat. If access becomes available, continue without asking for rotation approval again.
+Created these replacement API keys (identifiers below are metadata, not credential values):
 
-Current official Management API operations were checked: list keys with `GET /v1/projects/{ref}/api-keys?reveal=true`, create with `POST /v1/projects/{ref}/api-keys`, and disable legacy keys with `PUT /v1/projects/{ref}/api-keys/legacy?enabled=false`. Keep response values out of logs. Use replacement access checks before deactivation, then verify old-key rejection and new-key access afterward. This token scope does not grant log access; access-log review still requires a separate permitted connection.
+| Use | Name | Key ID |
+|---|---|---|
+| Browser | `exteriorviz_browser_2026_11` | `0e626cff-a801-4d7c-bcb7-c6a828edba4a` |
+| Application server | `exteriorviz_app_2026_11` | `2839dd40-b2e2-434a-be7e-48ff16947bdc` |
+| n8n monitor | `exteriorviz_monitor_2026_11` | `27c1890a-b2ad-4d95-8bf0-dc7c20d361a8` |
 
-## Prepared rollout
+- Updated Doppler `roofviz/dev` and `roofviz/prd`: `NEXT_PUBLIC_SUPABASE_ANON_KEY` now holds the publishable key; `SUPABASE_SERVICE_ROLE_KEY` holds the application secret key. Readback equality was verified without printing values. No unlock was required.
+- Updated and verified Vercel project `roof-viz` (`prj_V1vaCRRspMWAfxptfGCAg1iPXTWD`, team `team_CmrLwAbsrBBsaooLvE8TgHU2`) for development, preview and production. These environment entries are not identified as integration-managed, so actual values were verified explicitly rather than assuming Doppler sync. `SUPABASE_ACCESS_TOKEN` is absent from Vercel.
+- Updated dedicated n8n Supabase credential `Bar9 Monitor roofviz DB` (`8QGs2Tv8bh2WUanm`) with the monitor key and restricted its HTTP Request use to `gqqvxzxzuaevsuwazaqx.supabase.co`. It is used only by `HTTP - RoofViz Database` in active `WF-MAINT-01: Build Health Monitor` (`gsdVGiEr9orOdbnN`). Credential metadata confirms the update; the workflow graph was unchanged. The full monitor was not manually run because it can send email.
+- Removed embedded legacy-key fallbacks from the original Roof `main` scripts, using the already-sanitized unified versions. The script bodies after configuration are identical. Committed/pushed as `3f6d052`. Both scripts pass `node --check`, and the source credential guard passed from the original checkout.
+- Removed the superseded Supabase entries from original Roof's ignored `.env.local`; local development and maintenance scripts must use Doppler. No new secret was written to a local env file.
+- Rebuilt original Roof production from `main` and the unified feature preview with replacement keys. No unified production promotion, database migration or Window data migration occurred.
+- Disabled legacy API keys using `PUT /v1/projects/{ref}/api-keys/legacy?enabled=false`; a separate readback confirmed `enabled=false`. Initial requests still accepted the old key during propagation. Later requests rejected it; do not infer enforcement from the settings response alone.
 
-1. In the **Roof project only**, open Supabase Settings → API Keys. Create a new secret key for the server and a publishable key for the client if these do not already exist. They coexist with legacy keys during migration.
-2. Inventory consumers of this Roof project: original Roof production, the unified Vercel preview, Doppler `roofviz` dev/prd, maintenance scripts and any external jobs. Check Window's code/config for any inherited Roof-project credential; do not change unrelated projects. Never paste values into chat or source.
-3. Store the replacement server key in Doppler's existing `SUPABASE_SERVICE_ROLE_KEY` variable and the publishable key in `NEXT_PUBLIC_SUPABASE_ANON_KEY`. These application-defined names can hold the new opaque key values: the installed Supabase clients pass them to `createClient` without decoding JWTs. Preserve Doppler → Vercel synchronization and redeploy each actual consumer so build-time public configuration updates. Inspect any direct REST/Edge Function consumers separately for header compatibility.
-4. Verify controlled authentication, RLS-protected reads, privileged server reads and uploads with the replacement keys. Confirm every active consumer has been migrated. Do not use the pending unified SQL migration as a prerequisite to updating the old production app's credentials.
-5. Deactivate the **legacy API keys** in the Roof project's API Keys settings. This is the operation that prevents the leaked legacy credential being used as an API key. Confirm old-key rejection and new-key access without printing either key. Review project access logs for unexpected privileged activity.
-6. Keep historical copies treated as exposed. Removing historical Git content is a separate, coordinated history rewrite; do not force-push shared branches as a substitute for retiring the key.
+## Deployment and access verification
 
-This is an API-key migration, not an instruction to rotate the project's JWT signing secret blindly. Supabase documents a coexistence/deactivation path for legacy API keys, with deactivation reversible if a missed consumer must be recovered. Follow the actual project dashboard's available controls and verify each step.
+| Deployment | ID | Commit | Result |
+|---|---|---|---|
+| Original Roof production | `dpl_8SAvCnKZqfzHc5MNSN4k2otz6CfH` | `3f6d052` | Ready |
+| Unified preview | `dpl_CUBq21rLyKeVLT4qwkBG5ArGXLB3` | `b5d5401` | Ready |
 
-References checked during the audit: [Supabase API-key incident procedure](https://supabase.com/docs/guides/getting-started/api-keys#rotate-a-leaked-or-compromised-key), [migration to publishable and secret keys](https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys). These explain the source of the retirement requirement; it is a confirmed exposed privileged credential, not a hypothetical warning.
+Production: https://roof-viz.vercel.app (immutable: https://roof-fqm53m4bk-cyphercryptics-projects.vercel.app).
+Unified preview: https://roof-viz-git-integration-unified-viz-cyphercryptics-projects.vercel.app (immutable: https://roof-mkp3jq9vv-cyphercryptics-projects.vercel.app).
+
+For both production and the stable preview alias, `/` and `/login` returned **200**, unauthenticated `/api/billing/usage` returned **401**, and fetched login JavaScript bundles contained the replacement publishable key. Deployment protection stayed enabled.
+
+Fresh API checks after legacy deactivation propagated:
+
+| Check | HTTP result |
+|---|---|
+| Historical exposed key as `apikey` and Bearer token against REST | **401** |
+| Historical exposed Bearer token plus replacement publishable key against Auth admin | **401** |
+| Historical exposed Bearer token alone against Storage | **401** |
+| Replacement server key against REST | **200** |
+| Replacement publishable key against Auth settings | **200** |
+
+The new monitor key also passed its read-only database check. The new publishable key's anonymous profile query returned zero rows. The new application key successfully uploaded a temporary one-pixel image, created a signed URL and downloaded matching bytes; the temporary object was then removed. No existing object was modified.
+
+A controlled owner sign-in check was skipped because no confirmed `connor@bar9.ai` Auth user was found; no account was created and no login email was sent. Full authenticated browser QA, provider generation, billing flows and the monitor's scheduled execution remain outside this verification.
+
+## Remaining step: remove legacy JWT trust
+
+The current [Supabase incident-recovery guide](https://supabase.com/docs/guides/security/rotate-leaked-api-keys) explicitly requires revoking the legacy JWT secret when a legacy service-role key leaked. A legacy API key is also a signed JWT; API-key deactivation and signing-key trust are separate controls. Do not treat the tested gateway rejection as verification that the legacy signing secret is revoked.
+
+The supplied management token had API Keys and API Key Secrets permissions, but both signing-key GET endpoints returned **403** with `Missing required permission(s): auth_signing_keys_read`. Connor was asked to add **Auth Signing Keys: Read-write** to the same Roof-only token (or recreate it) and save it in Doppler `roofviz/dev` as `SUPABASE_ACCESS_TOKEN`. Existing rotation authorization persists. The token remains in dev pending this step and was not deployed to Vercel.
+
+Continuation procedure:
+
+1. Read `GET /v1/projects/{ref}/config/auth/signing-keys` and `/config/auth/signing-keys/legacy`, printing only IDs, algorithms and statuses. The public JWKS already advertises ES256 key `3a4e54a5-0d7c-4013-8dc5-60accbbbfcfe`; its current/standby status is unverified until management access works.
+2. Follow the [JWT signing-keys guide](https://supabase.com/docs/guides/auth/signing-keys). If a modern key is already current, do not create/rotate another unnecessarily. If required, import the legacy secret into the signing-key system, create an ES256 standby key and rotate it into use through the documented APIs. Respect the platform's transition cooldowns.
+3. Revoke the legacy key by changing its status, **not permanently deleting it**. Existing test sessions may need to sign in again. App code verifies users with Supabase `auth.getUser()` and has no direct JWT-secret verifier or Edge Function invocations in either checkout. No customer data/schema should change.
+4. Confirm management status is revoked, rerun the old-key rejection matrix and new-key access checks, and recheck deployed public/auth-boundary routes. Keep legacy API keys disabled.
+5. Update this report and the handoff, remove temporary management credentials from app configuration when no longer needed, and commit only the session's changed files. The pre-existing landing-page edits are Connor's separate work.
+
+Access-log review was not performed: the supplied token did not include Logs permission. Do not claim historical misuse was ruled out. Do not re-enable exposed keys or force-push Git history as a substitute for retirement. Window project `gpvpfesbdcnhsyylvwtp` uses separate credentials and needs no changes for this incident.

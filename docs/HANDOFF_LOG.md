@@ -1,5 +1,19 @@
 # ExteriorViz — Handoff Log
 
+## Last session (2026-11-12, Codex for Connor)
+
+Investigated the Supabase credential incident at Connor's request. **Rotation is not complete:** the historical exposed Roof service-role key was accepted by a read-only request (HTTP 200). Supabase management access is required to create replacements and disable legacy API keys; no management token or connected Supabase management tool was available, and the browser access host was unavailable. Connor was asked to supply a short-lived, Roof-only management token through Doppler, not chat.
+
+- Confirmed Roof `dev` and `prd` in Doppler and Vercel's shared development/preview/production environment entry still use the exposed server key. Their client keys are also legacy JWTs. Window `dev`/`prd` point to the separate Window project and do not use the exposed Roof key.
+- Identified an additional consumer: active n8n `WF-MAINT-01: Build Health Monitor` (`gsdVGiEr9orOdbnN`), node `HTTP - RoofViz Database`, credential `Bar9 Monitor roofviz DB` (`8QGs2Tv8bh2WUanm`, `supabaseApi`). Credential metadata confirms it is used only by that workflow. Update this credential during rotation without changing the workflow graph.
+- Vercel CLI access works with scope `cyphercryptics-projects`; the connected Vercel plugin returned project-not-found for the same known project. Production is Ready at `dpl_J3WPj2RHtvA6mkyGfP8FV3TEZHPY` / commit `9d88f21`; current unified preview is Ready at `dpl_4dB92c9bdD2hVmQvisefobnjvnuL` / commit `310ff9f`. Rebuild each source with replacement keys; do not promote the unified app as part of credential replacement.
+- Source/client constructors accept replacement API keys through the existing environment-variable names. The original Roof checkout also has ignored `.env.local` Supabase variables; normal development should use Doppler so stale values are not used.
+- Fresh local verification: source credential guard, four fixture suites, **68 Node tests**, ESLint and TypeScript passed. No production build, PGlite suite, browser flow, paid generation, email or checkout test was run.
+- Preserved pre-existing uncommitted changes in `src/app/page.tsx`, `src/components/landing/Landing.module.css`, and `src/components/landing/MobileNav.tsx`: landing pricing and Escape-focus restoration. The handoff's mobile-menu item is implemented locally but still needs browser review and a separate commit.
+- No keys, app configuration, workflow, schema, account or production deployment were changed. A documentation push can create a new branch preview automatically. No secret values were printed or saved in this report. See [CREDENTIAL-ROTATION.md](CREDENTIAL-ROTATION.md) for the current consumer inventory and continuation steps.
+
+---
+
 ## Last session (2026-09-21, Connor Franklin)
 
 Completed the documentation-only continuation wrap. Concurrent session commit `ad51b77` arrived during the wrap; its handoff was used as the base, all open items were retained, and its Last session block was archived in [HANDOFF_LOG.md](HANDOFF_LOG.md).
